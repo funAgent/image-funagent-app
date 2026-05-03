@@ -1,0 +1,170 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum LoginAttemptStatus {
+  PENDING
+  CONFIRMED
+  EXPIRED
+}
+
+enum GenerationStatus {
+  QUEUED
+  SUCCEEDED
+  FAILED
+}
+
+enum GenerationMode {
+  TEXT
+  REFERENCE
+}
+
+model User {
+  id                   String       @id @default(cuid())
+  wechatOpenId         String?      @unique
+  unionId              String?
+  nickname             String?
+  role                 UserRole     @default(USER)
+  status               UserStatus   @default(ACTIVE)
+  dailyLimitOverride   Int?
+  maxRefImagesOverride Int?
+  maxFileMbOverride    Int?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  sessions       Session[]
+  loginAttempts  LoginAttempt[]
+  dailyUsage     DailyUsage[]
+  generations    Generation[]
+  inviteCode     InviteCode?   @relation("InviteCodeUser")
+  createdInvites InviteCode[]  @relation("InviteCodeCreator")
+
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model InviteCode {
+  id                   String    @id @default(cuid())
+  codeHash             String    @unique
+  codePreview          String
+  label                String?
+  role                 UserRole  @default(USER)
+  dailyLimitOverride   Int?
+  maxRefImagesOverride Int?
+  maxFileMbOverride    Int?
+  expiresAt            DateTime?
+  disabledAt           DateTime?
+  userId               String?   @unique
+  createdById          String?
+  useCount             Int       @default(0)
+  lastUsedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user      User? @relation("InviteCodeUser", fields: [userId], references: [id], onDelete: SetNull)
+  createdBy User? @relation("InviteCodeCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@index([disabledAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  id          String             @id @default(cuid())
+  code        String             @unique
+  status      LoginAttemptStatus @default(PENDING)
+  userId      String?
+  expiresAt   DateTime
+  confirmedAt DateTime?
+  createdAt   DateTime           @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+model DailyUsage {
+  id             String   @id @default(cuid())
+  userId         String
+  usageDate      DateTime @db.Date
+  usedCount      Int      @default(0)
+  reservedCount  Int      @default(0)
+  totalInputTokens  Int   @default(0)
+  totalOutputTokens Int   @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, usageDate])
+  @@index([usageDate])
+}
+
+model Generation {
+  id             String           @id @default(cuid())
+  userId         String
+  status         GenerationStatus @default(QUEUED)
+  mode           GenerationMode
+  model          String
+  prompt         String
+  size           String
+  quality        String
+  outputFormat   String
+  imageUrl       String?
+  storageKey     String?
+  referenceImages Json?
+  inputTokens    Int?
+  outputTokens   Int?
+  errorMessage   String?
+  usageDate      DateTime         @db.Date
+  createdAt      DateTime         @default(now())
+  completedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([usageDate])
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

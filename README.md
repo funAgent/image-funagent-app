@@ -1,36 +1,114 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FunAgent Image
 
-## Getting Started
+微信登录的 AI 图片生成工作台，主域名建议使用 `image.funagent.app`。
 
-First, run the development server:
+## MVP 功能
+
+- 个人公众号可用的验证码登录：网页生成 `登录 123456`，用户发送到公众号，微信回调完成登录。
+- 登录后才能使用图片生成。
+- 默认每日 3 次免费额度，管理员可按用户覆盖每日次数、参考图数量、单张大小和状态。
+- 支持文本生图、参考图改图，默认模型为 `gpt-image-2`。
+- 生成结果保存到 Vercel Blob，历史记录保存在 Supabase Postgres。
+
+## 本地开发
 
 ```bash
+npm install
+npx prisma dev --name funagent-image --detach
+npm run db:push
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+本地 `.env` 可以参考 `.env.example`。调试登录需要：
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+ALLOW_DEV_LOGIN="true"
+DEV_LOGIN_ROLE="ADMIN"
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 生产环境变量
 
-## Learn More
+在 Vercel Project Settings 里配置：
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+DATABASE_URL="postgresql://funagent_app:...@db.lqflvyvvwqhammdqyqfu.supabase.co:5432/postgres?sslmode=require&uselibpqcompat=true"
+DIRECT_URL="postgresql://funagent_migrator:...@db.lqflvyvvwqhammdqyqfu.supabase.co:5432/postgres?sslmode=require&uselibpqcompat=true"
+# SHADOW_DATABASE_URL=""
+NEXT_PUBLIC_SUPABASE_URL="https://lqflvyvvwqhammdqyqfu.supabase.co"
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_..."
+NEXT_PUBLIC_APP_URL="https://image.funagent.app"
+OPENAI_API_KEY="sk-..."
+OPENAI_IMAGE_MODEL="gpt-image-2"
+WECHAT_TOKEN="..."
+WECHAT_APP_ID="..."
+WECHAT_APP_SECRET="..."
+ADMIN_OPENIDS="openid1,openid2"
+DEFAULT_DAILY_LIMIT="3"
+DEFAULT_MAX_REF_IMAGES="4"
+DEFAULT_MAX_FILE_MB="10"
+MAX_TOTAL_UPLOAD_MB="25"
+BLOB_READ_WRITE_TOKEN="..."
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+不要把真实 OpenAI Key 提交到仓库。
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Supabase 数据库
 
-## Deploy on Vercel
+当前 Supabase 项目：
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```txt
+name: funagent-image
+project id/ref: lqflvyvvwqhammdqyqfu
+region: ap-northeast-1
+url: https://lqflvyvvwqhammdqyqfu.supabase.co
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+本项目已创建两个数据库角色：
+
+- `funagent_app`：应用运行时使用，拥有表级读写权限并 bypass RLS。
+- `funagent_migrator`：Prisma 迁移使用，拥有迁移所需 DDL 权限。
+
+本地 `.env` 已经填好这两个连接串；部署到 Vercel 时，把 `.env` 里的 `DATABASE_URL` 和 `DIRECT_URL` 原样填入 Vercel 环境变量。
+
+如果后续要改成 Supavisor pooler，到 Supabase Project Settings -> Database 复制连接串：
+
+- `DATABASE_URL`：给 Vercel 运行时使用，建议用 Transaction pooler，端口通常是 `6543`。
+- `DIRECT_URL`：给 Prisma 迁移使用，建议用 Session pooler 或 Direct connection，端口通常是 `5432`。
+- 两个 URL 都要带 `sslmode=require&uselibpqcompat=true`，用于兼容 Node `pg`/Prisma adapter 的 TLS 处理。
+
+首次部署后执行迁移：
+
+```bash
+npm run db:deploy
+```
+
+常用本地命令：
+
+```bash
+npm run db:generate
+npm run db:push
+npm run db:migrate
+npm run db:deploy
+npm run db:status
+```
+
+## 微信公众号配置
+
+公众号服务器地址：
+
+```txt
+https://image.funagent.app/api/wechat
+```
+
+Token 使用 `WECHAT_TOKEN` 的值。个人公众号优先使用消息验证码登录；如果后续升级为认证服务号，可以在现有 `User.wechatOpenId` 体系上补 OAuth。
+
+## 域名与 Vercel
+
+建议 DNS：
+
+```txt
+image.funagent.app  CNAME  cname.vercel-dns.com
+img.funagent.app    CNAME  cname.vercel-dns.com
+```
+
+`image.funagent.app` 作为主站，`img.funagent.app` 可作为短域名跳转。
