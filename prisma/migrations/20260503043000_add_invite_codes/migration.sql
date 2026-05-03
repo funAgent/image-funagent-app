@@ -40,24 +40,11 @@ ALTER TABLE "InviteCode" ADD CONSTRAINT "InviteCode_userId_fkey" FOREIGN KEY ("u
 -- AddForeignKey
 ALTER TABLE "InviteCode" ADD CONSTRAINT "InviteCode_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
--- Supabase public schema hardening
+-- Supabase public schema hardening.
+-- Runtime and migration database role grants are environment-specific.
+-- Configure grants outside this migration for your own Supabase roles.
 ALTER TABLE "InviteCode" ENABLE ROW LEVEL SECURITY;
-
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'funagent_app') THEN
-    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "InviteCode" TO funagent_app;
-  END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'funagent_migrator') THEN
-    GRANT ALL PRIVILEGES ON TABLE "InviteCode" TO funagent_migrator;
-  END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-    REVOKE ALL ON TABLE "InviteCode" FROM anon;
-  END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-    REVOKE ALL ON TABLE "InviteCode" FROM authenticated;
-  END IF;
-END $$;
+REVOKE ALL ON TABLE "InviteCode" FROM anon, authenticated;
 
 DO $$
 BEGIN

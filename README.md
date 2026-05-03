@@ -14,8 +14,8 @@
 
 ```bash
 npm install
-npx prisma dev --name funagent-image --detach
-npm run db:push
+npm run db:generate
+npm run db:deploy
 npm run dev
 ```
 
@@ -23,21 +23,23 @@ npm run dev
 
 ```bash
 ALLOW_DEV_LOGIN="true"
-DEV_LOGIN_ROLE="ADMIN"
+DEV_LOGIN_ROLE="USER"
 ```
+
+如果需要本地管理员账号，可以临时把 `DEV_LOGIN_ROLE` 改成 `ADMIN`，但生产环境必须保持 `ALLOW_DEV_LOGIN="false"`。
 
 ## 生产环境变量
 
 在 Vercel Project Settings 里配置：
 
 ```bash
-DATABASE_URL="postgresql://funagent_app:...@db.lqflvyvvwqhammdqyqfu.supabase.co:5432/postgres?sslmode=require&uselibpqcompat=true"
-DIRECT_URL="postgresql://funagent_migrator:...@db.lqflvyvvwqhammdqyqfu.supabase.co:5432/postgres?sslmode=require&uselibpqcompat=true"
+DATABASE_URL="postgresql://APP_ROLE:PASSWORD@db.PROJECT_REF.supabase.co:5432/postgres?sslmode=require&uselibpqcompat=true"
+DIRECT_URL="postgresql://MIGRATION_ROLE:PASSWORD@db.PROJECT_REF.supabase.co:5432/postgres?sslmode=require&uselibpqcompat=true"
 # SHADOW_DATABASE_URL=""
-NEXT_PUBLIC_SUPABASE_URL="https://lqflvyvvwqhammdqyqfu.supabase.co"
+NEXT_PUBLIC_SUPABASE_URL="https://PROJECT_REF.supabase.co"
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_..."
 NEXT_PUBLIC_APP_URL="https://image.funagent.app"
-OPENAI_API_KEY="sk-..."
+OPENAI_API_KEY=""
 OPENAI_IMAGE_MODEL="gpt-image-2"
 WECHAT_TOKEN="..."
 WECHAT_APP_ID="..."
@@ -48,27 +50,20 @@ DEFAULT_MAX_REF_IMAGES="4"
 DEFAULT_MAX_FILE_MB="10"
 MAX_TOTAL_UPLOAD_MB="25"
 BLOB_READ_WRITE_TOKEN="..."
+ALLOW_DEV_LOGIN="false"
+DEV_LOGIN_ROLE="USER"
 ```
 
-不要把真实 OpenAI Key 提交到仓库。
+不要把真实 OpenAI Key、数据库连接串、Blob Token 或微信 AppSecret 提交到仓库。
 
 ## Supabase 数据库
 
-当前 Supabase 项目：
+建议为应用创建两个数据库角色：
 
-```txt
-name: funagent-image
-project id/ref: lqflvyvvwqhammdqyqfu
-region: ap-northeast-1
-url: https://lqflvyvvwqhammdqyqfu.supabase.co
-```
+- `APP_ROLE`：应用运行时使用，拥有表级读写权限。
+- `MIGRATION_ROLE`：Prisma 迁移使用，拥有迁移所需 DDL 权限。
 
-本项目已创建两个数据库角色：
-
-- `funagent_app`：应用运行时使用，拥有表级读写权限并 bypass RLS。
-- `funagent_migrator`：Prisma 迁移使用，拥有迁移所需 DDL 权限。
-
-本地 `.env` 已经填好这两个连接串；部署到 Vercel 时，把 `.env` 里的 `DATABASE_URL` 和 `DIRECT_URL` 原样填入 Vercel 环境变量。
+部署到 Vercel 时，按 `.env.example` 配置你自己的 `DATABASE_URL` 和 `DIRECT_URL`。
 
 如果后续要改成 Supavisor pooler，到 Supabase Project Settings -> Database 复制连接串：
 
