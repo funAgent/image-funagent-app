@@ -33,7 +33,7 @@ DEV_LOGIN_ROLE="USER"
 在 Vercel Project Settings 里配置：
 
 ```bash
-DATABASE_URL="postgresql://APP_ROLE:PASSWORD@db.PROJECT_REF.supabase.co:5432/postgres?sslmode=require&uselibpqcompat=true"
+DATABASE_URL="postgresql://APP_ROLE:PASSWORD@db.PROJECT_REF.supabase.co:6543/postgres?sslmode=require&pgbouncer=true&connection_limit=1&uselibpqcompat=true"
 DIRECT_URL="postgresql://MIGRATION_ROLE:PASSWORD@db.PROJECT_REF.supabase.co:5432/postgres?sslmode=require&uselibpqcompat=true"
 # SHADOW_DATABASE_URL=""
 NEXT_PUBLIC_SUPABASE_URL="https://PROJECT_REF.supabase.co"
@@ -65,11 +65,11 @@ DEV_LOGIN_ROLE="USER"
 
 部署到 Vercel 时，按 `.env.example` 配置你自己的 `DATABASE_URL` 和 `DIRECT_URL`。
 
-如果后续要改成 Supavisor pooler，到 Supabase Project Settings -> Database 复制连接串：
-
-- `DATABASE_URL`：给 Vercel 运行时使用，建议用 Transaction pooler，端口通常是 `6543`。
+- `DATABASE_URL`：给 Vercel 运行时使用，使用 Supabase Transaction Pooler，端口通常是 `6543`，并添加 `pgbouncer=true&connection_limit=1`。
 - `DIRECT_URL`：给 Prisma 迁移使用，建议用 Session pooler 或 Direct connection，端口通常是 `5432`。
 - 两个 URL 都要带 `sslmode=require&uselibpqcompat=true`，用于兼容 Node `pg`/Prisma adapter 的 TLS 处理。
+
+如果 `invite-login` 在 Vercel 返回 `UPSTREAM_ERROR`，优先检查 `DATABASE_URL` 是否误用了 `5432` 直连，或是否缺少 `pgbouncer=true&connection_limit=1`。
 
 首次部署后执行迁移：
 
