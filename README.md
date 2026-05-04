@@ -40,7 +40,11 @@ NEXT_PUBLIC_SUPABASE_URL="https://PROJECT_REF.supabase.co"
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_..."
 NEXT_PUBLIC_APP_URL="https://image.funagent.app"
 OPENAI_API_KEY=""
+OPENAI_BASE_URL=""
 OPENAI_IMAGE_MODEL="gpt-image-2"
+# 可选：OpenAI SDK 兼容网关，例如 api-xai.ainaibahub.com
+XAI_API_KEY=""
+XAI_BASE_URL="https://api-xai.ainaibahub.com/v1"
 WECHAT_TOKEN="..."
 WECHAT_APP_ID="..."
 WECHAT_APP_SECRET="..."
@@ -55,6 +59,12 @@ DEV_LOGIN_ROLE="USER"
 ```
 
 不要把真实 OpenAI Key、数据库连接串、Blob Token 或微信 AppSecret 提交到仓库。
+
+如果使用 OpenAI SDK 兼容网关：
+
+- `OPENAI_BASE_URL` 或 `XAI_BASE_URL` 填网关地址，例如 `https://api-xai.ainaibahub.com/v1`。
+- `XAI_API_KEY` 填网关平台 Key；设置后会优先于 `OPENAI_API_KEY` 使用。
+- `OPENAI_IMAGE_MODEL` 继续使用网关支持的模型名，例如 `gpt-image-2`。
 
 ## Supabase 数据库
 

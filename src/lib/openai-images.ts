@@ -15,13 +15,26 @@ export type ImageQuality = (typeof imageQualities)[number];
 export type OutputFormat = (typeof outputFormats)[number];
 
 let client: OpenAI | null = null;
+let clientKey: string | null = null;
+let clientBaseUrl: string | null = null;
 
 const getOpenAI = () => {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new ApiError("CONFIG_MISSING", "OpenAI API Key 未配置。", 500);
+  const apiKey = process.env.XAI_API_KEY ?? process.env.OPENAI_API_KEY;
+  const baseURL = process.env.OPENAI_BASE_URL ?? process.env.XAI_BASE_URL;
+
+  if (!apiKey) {
+    throw new ApiError("CONFIG_MISSING", "图片生成 API Key 未配置。", 500);
   }
 
-  client ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  if (!client || clientKey !== apiKey || clientBaseUrl !== (baseURL ?? null)) {
+    client = new OpenAI({
+      apiKey,
+      baseURL,
+    });
+    clientKey = apiKey;
+    clientBaseUrl = baseURL ?? null;
+  }
+
   return client;
 };
 
