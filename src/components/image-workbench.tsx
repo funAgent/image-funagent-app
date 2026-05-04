@@ -7,6 +7,7 @@ import {
   Clipboard,
   Clock,
   Copy,
+  Download,
   FileImage,
   Gauge,
   ImageIcon,
@@ -142,6 +143,11 @@ function formatDate(value: string | null) {
 
 function formatMb(size: number) {
   return `${(size / 1024 / 1024).toFixed(size > 1024 * 1024 ? 1 : 2)} MB`;
+}
+
+function getGenerationImageFilename(generation: Generation) {
+  const extension = generation.outputFormat === "jpeg" ? "jpg" : generation.outputFormat;
+  return `funagent-${generation.id}.${extension || "png"}`;
 }
 
 function numberOrNull(value: string) {
@@ -1006,6 +1012,39 @@ function SideRail({
 }
 
 function History({ generations }: { generations: Generation[] }) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const copyPrompt = async (generation: Generation) => {
+    await navigator.clipboard.writeText(generation.prompt);
+    setCopiedId(generation.id);
+    window.setTimeout(() => setCopiedId(null), 1200);
+  };
+
+  const downloadImage = async (generation: Generation) => {
+    if (!generation.imageUrl) return;
+
+    setDownloadingId(generation.id);
+    try {
+      const response = await fetch(generation.imageUrl);
+      if (!response.ok) throw new Error("Image download failed");
+
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = getGenerationImageFilename(generation);
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
+    } catch {
+      window.open(generation.imageUrl, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   return (
     <section className={cx(panelClass, "p-5")}>
       <div className="mb-4 flex items-center justify-between">
@@ -1043,7 +1082,7 @@ function History({ generations }: { generations: Generation[] }) {
                   </div>
                 )}
               </div>
-              <div className="min-w-0 p-3">
+              <div className="flex min-w-0 flex-col p-3">
                 <div className="mb-2 flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
                   <span>{generation.mode === "REFERENCE" ? "参考图" : "文本"}</span>
                   <span>{formatDate(generation.createdAt)}</span>
@@ -1054,6 +1093,33 @@ function History({ generations }: { generations: Generation[] }) {
                     {generation.errorMessage}
                   </p>
                 ) : null}
+                <div className="mt-auto flex flex-wrap gap-2 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => copyPrompt(generation)}
+                    className={cx(secondaryButton, "h-8 min-w-[68px] px-2.5 text-xs")}
+                    title="复制提示词"
+                  >
+                    {copiedId === generation.id ? <Check size={14} /> : <Copy size={14} />}
+                    {copiedId === generation.id ? "已复制" : "复制"}
+                  </button>
+                  {generation.imageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => downloadImage(generation)}
+                      disabled={downloadingId === generation.id}
+                      className={cx(secondaryButton, "h-8 min-w-[68px] px-2.5 text-xs")}
+                      title="下载图片"
+                    >
+                      {downloadingId === generation.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Download size={14} />
+                      )}
+                      {downloadingId === generation.id ? "下载中" : "下载"}
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </article>
           ))}
