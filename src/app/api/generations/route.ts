@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
       throw new ApiError("BAD_REQUEST", "请补充图片描述。", 400);
     }
 
-    if (prompt.length > 1200) {
-      throw new ApiError("BAD_REQUEST", "图片描述最多 1200 字。", 400);
+    if (prompt.length > 3200) {
+      throw new ApiError("BAD_REQUEST", "图片描述最多 3200 字。", 400);
     }
 
     if (
