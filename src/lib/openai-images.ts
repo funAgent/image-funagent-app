@@ -17,10 +17,20 @@ export type OutputFormat = (typeof outputFormats)[number];
 let client: OpenAI | null = null;
 let clientKey: string | null = null;
 let clientBaseUrl: string | null = null;
+const xaiDefaultBaseUrl = "https://api-xai.ainaibahub.com/v1";
+
+const envValue = (value: string | undefined) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+};
 
 const getOpenAI = () => {
-  const apiKey = process.env.XAI_API_KEY ?? process.env.OPENAI_API_KEY;
-  const baseURL = process.env.OPENAI_BASE_URL ?? process.env.XAI_BASE_URL;
+  const xaiKey = envValue(process.env.XAI_API_KEY);
+  const openaiKey = envValue(process.env.OPENAI_API_KEY);
+  const apiKey = xaiKey ?? openaiKey;
+  const baseURL = xaiKey
+    ? envValue(process.env.OPENAI_BASE_URL) ?? envValue(process.env.XAI_BASE_URL) ?? xaiDefaultBaseUrl
+    : envValue(process.env.OPENAI_BASE_URL);
 
   if (!apiKey) {
     throw new ApiError("CONFIG_MISSING", "图片生成 API Key 未配置。", 500);

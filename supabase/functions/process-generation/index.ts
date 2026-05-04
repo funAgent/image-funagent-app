@@ -29,6 +29,7 @@ type ImageResult = {
 
 const workerLockId = 294781604;
 const bucket = "generation-images";
+const xaiDefaultBaseUrl = "https://api-xai.ainaibahub.com/v1";
 const corsHeaders = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers": "authorization, x-client-info, apikey, content-type, x-worker-secret",
@@ -165,11 +166,15 @@ async function processGeneration(sql: postgres.Sql, generation: GenerationRow) {
 }
 
 async function createImage(generation: GenerationRow): Promise<ImageResult> {
-  const apiKey = Deno.env.get("XAI_API_KEY") ?? Deno.env.get("OPENAI_API_KEY");
+  const xaiKey = envValue("XAI_API_KEY");
+  const openaiKey = envValue("OPENAI_API_KEY");
+  const apiKey = xaiKey ?? openaiKey;
   const baseUrl = normalizeBaseUrl(
-    Deno.env.get("OPENAI_BASE_URL") ?? Deno.env.get("XAI_BASE_URL") ?? "https://api.openai.com/v1",
+    xaiKey
+      ? envValue("OPENAI_BASE_URL") ?? envValue("XAI_BASE_URL") ?? xaiDefaultBaseUrl
+      : envValue("OPENAI_BASE_URL") ?? "https://api.openai.com/v1",
   );
-  const model = Deno.env.get("OPENAI_IMAGE_MODEL") ?? generation.model;
+  const model = envValue("OPENAI_IMAGE_MODEL") ?? generation.model;
   const resolved = resolveImageAspect(generation.size);
   const prompt = resolved.promptHint
     ? `${generation.prompt}\n\n画幅要求：${resolved.promptHint}`
@@ -178,6 +183,13 @@ async function createImage(generation: GenerationRow): Promise<ImageResult> {
   if (!apiKey) {
     throw new Error("图片生成 API Key 未配置。");
   }
+
+  console.info("[worker] image provider", {
+    generationId: generation.id,
+    baseUrl,
+    model,
+    keySource: xaiKey ? "XAI_API_KEY" : "OPENAI_API_KEY",
+  });
 
   const references = parseReferences(generation.referenceImages);
   const endpoint = references.length > 0 ? "images/edits" : "images/generations";
@@ -390,6 +402,11 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
 
 function normalizeBaseUrl(value: string) {
   return value.replace(/\/+$/, "");
+}
+
+function envValue(name: string) {
+  const value = Deno.env.get(name)?.trim();
+  return value ? value : undefined;
 }
 
 async function providerErrorText(response: Response) {
