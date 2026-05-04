@@ -20,6 +20,12 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const staleQueuedAfterMs = 2 * 60 * 60 * 1000;
+const xaiDefaultBaseUrl = "https://api-xai.ainaibahub.com/v1";
+
+const envValue = (value: string | undefined) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+};
 
 export async function GET() {
   try {
@@ -160,12 +166,40 @@ async function triggerGenerationWorker() {
       "content-type": "application/json",
       "x-worker-secret": secret,
     },
-    body: JSON.stringify({ source: "vercel" }),
+    body: JSON.stringify({
+      source: "vercel",
+      provider: imageProviderFromEnv(),
+    }),
   });
 
   if (!response.ok) {
     console.error("[generation-worker] trigger failed", response.status, await response.text());
   }
+}
+
+function imageProviderFromEnv() {
+  const xaiKey = envValue(process.env.XAI_API_KEY);
+  if (xaiKey) {
+    return {
+      apiKey: xaiKey,
+      baseUrl:
+        envValue(process.env.OPENAI_BASE_URL) ??
+        envValue(process.env.XAI_BASE_URL) ??
+        xaiDefaultBaseUrl,
+      model: envValue(process.env.OPENAI_IMAGE_MODEL) ?? appEnv.openaiImageModel,
+      keySource: "XAI_API_KEY",
+    };
+  }
+
+  const openaiKey = envValue(process.env.OPENAI_API_KEY);
+  if (!openaiKey) return null;
+
+  return {
+    apiKey: openaiKey,
+    baseUrl: envValue(process.env.OPENAI_BASE_URL) ?? "https://api.openai.com/v1",
+    model: envValue(process.env.OPENAI_IMAGE_MODEL) ?? appEnv.openaiImageModel,
+    keySource: "OPENAI_API_KEY",
+  };
 }
 
 async function expireStaleQueuedGenerations(userId: string) {

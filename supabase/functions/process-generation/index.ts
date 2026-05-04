@@ -27,6 +27,13 @@ type ImageResult = {
   };
 };
 
+type ProviderConfig = {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  keySource?: string;
+};
+
 const workerLockId = 294781604;
 const bucket = "generation-images";
 const xaiDefaultBaseUrl = "https://api-xai.ainaibahub.com/v1";
@@ -46,13 +53,14 @@ Deno.serve(async (request) => {
 
   const body = await readJson(request);
   const limit = clampNumber(body?.limit, 1, 3, 1);
+  const provider = parseProviderConfig(body?.provider);
 
-  EdgeRuntime.waitUntil(processQueue(limit));
+  EdgeRuntime.waitUntil(processQueue(limit, provider));
 
   return json({ ok: true, accepted: true });
 });
 
-async function processQueue(limit: number) {
+async function processQueue(limit: number, provider?: ProviderConfig | null) {
   const databaseUrl = Deno.env.get("SUPABASE_DB_URL") ?? Deno.env.get("DATABASE_URL");
   if (!databaseUrl) {
     console.error("[worker] DATABASE_URL is not configured");
@@ -72,7 +80,7 @@ async function processQueue(limit: number) {
     for (let index = 0; index < limit; index += 1) {
       const generation = await nextQueuedGeneration(sql);
       if (!generation) break;
-      await processGeneration(sql, generation);
+      await processGeneration(sql, generation, provider);
     }
   } catch (error) {
     console.error("[worker] queue failed", toProviderMessage(error));
@@ -105,9 +113,13 @@ async function nextQueuedGeneration(sql: postgres.Sql) {
   return rows[0] ?? null;
 }
 
-async function processGeneration(sql: postgres.Sql, generation: GenerationRow) {
+async function processGeneration(
+  sql: postgres.Sql,
+  generation: GenerationRow,
+  provider?: ProviderConfig | null,
+) {
   try {
-    const image = await createImage(generation);
+    const image = await createImage(generation, provider);
     const stored = await storeImage(generation, image.b64Json);
 
     await sql.begin(async (tx) => {
@@ -165,16 +177,22 @@ async function processGeneration(sql: postgres.Sql, generation: GenerationRow) {
   }
 }
 
-async function createImage(generation: GenerationRow): Promise<ImageResult> {
+async function createImage(
+  generation: GenerationRow,
+  provider?: ProviderConfig | null,
+): Promise<ImageResult> {
   const xaiKey = envValue("XAI_API_KEY");
   const openaiKey = envValue("OPENAI_API_KEY");
-  const apiKey = xaiKey ?? openaiKey;
+  const providerApiKey = cleanString(provider?.apiKey);
+  const apiKey = providerApiKey ?? xaiKey ?? openaiKey;
   const baseUrl = normalizeBaseUrl(
-    xaiKey
-      ? envValue("OPENAI_BASE_URL") ?? envValue("XAI_BASE_URL") ?? xaiDefaultBaseUrl
+    providerApiKey
+      ? cleanString(provider?.baseUrl) ?? xaiDefaultBaseUrl
+      : xaiKey
+        ? envValue("OPENAI_BASE_URL") ?? envValue("XAI_BASE_URL") ?? xaiDefaultBaseUrl
       : envValue("OPENAI_BASE_URL") ?? "https://api.openai.com/v1",
   );
-  const model = envValue("OPENAI_IMAGE_MODEL") ?? generation.model;
+  const model = cleanString(provider?.model) ?? envValue("OPENAI_IMAGE_MODEL") ?? generation.model;
   const resolved = resolveImageAspect(generation.size);
   const prompt = resolved.promptHint
     ? `${generation.prompt}\n\n画幅要求：${resolved.promptHint}`
@@ -188,7 +206,7 @@ async function createImage(generation: GenerationRow): Promise<ImageResult> {
     generationId: generation.id,
     baseUrl,
     model,
-    keySource: xaiKey ? "XAI_API_KEY" : "OPENAI_API_KEY",
+    keySource: cleanString(provider?.keySource) ?? (xaiKey ? "XAI_API_KEY" : "OPENAI_API_KEY"),
   });
 
   const references = parseReferences(generation.referenceImages);
@@ -394,6 +412,17 @@ async function readJson(request: Request) {
   }
 }
 
+function parseProviderConfig(value: unknown): ProviderConfig | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  return {
+    apiKey: typeof record.apiKey === "string" ? record.apiKey : undefined,
+    baseUrl: typeof record.baseUrl === "string" ? record.baseUrl : undefined,
+    model: typeof record.model === "string" ? record.model : undefined,
+    keySource: typeof record.keySource === "string" ? record.keySource : undefined,
+  };
+}
+
 function clampNumber(value: unknown, min: number, max: number, fallback: number) {
   const parsed = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed)) return fallback;
@@ -405,8 +434,12 @@ function normalizeBaseUrl(value: string) {
 }
 
 function envValue(name: string) {
-  const value = Deno.env.get(name)?.trim();
-  return value ? value : undefined;
+  return cleanString(Deno.env.get(name));
+}
+
+function cleanString(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 async function providerErrorText(response: Response) {
