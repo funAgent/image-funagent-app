@@ -121,6 +121,18 @@ function asOpenAIError(error: unknown): ApiError {
 
   if (status === 400) {
     if (
+      normalizedErrorText.includes("billing") ||
+      normalizedErrorText.includes("hard limit") ||
+      normalizedErrorText.includes("quota")
+    ) {
+      return new ApiError(
+        "UPSTREAM_ERROR",
+        "OpenAI 账单额度或硬上限已用完，请调整 OpenAI Billing 设置后重试。",
+        502,
+      );
+    }
+
+    if (
       normalizedErrorText.includes("safety") ||
       normalizedErrorText.includes("moderation") ||
       normalizedErrorText.includes("content policy")
