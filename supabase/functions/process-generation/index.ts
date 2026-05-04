@@ -123,7 +123,7 @@ async function processGeneration(
     const stored = await storeImage(generation, image.b64Json);
 
     await sql.begin(async (tx) => {
-      await tx`
+      const updated = await tx<{ id: string }[]>`
         update "Generation"
         set
           status = 'SUCCEEDED',
@@ -133,7 +133,11 @@ async function processGeneration(
           "outputTokens" = ${image.usage?.output_tokens ?? null},
           "completedAt" = now()
         where id = ${generation.id}
+          and status = 'QUEUED'
+        returning id
       `;
+
+      if (updated.length === 0) return;
 
       await tx`
         update "DailyUsage"
@@ -156,14 +160,18 @@ async function processGeneration(
     });
 
     await sql.begin(async (tx) => {
-      await tx`
+      const updated = await tx<{ id: string }[]>`
         update "Generation"
         set
           status = 'FAILED',
           "errorMessage" = ${message},
           "completedAt" = now()
         where id = ${generation.id}
+          and status = 'QUEUED'
+        returning id
       `;
+
+      if (updated.length === 0) return;
 
       await tx`
         update "DailyUsage"

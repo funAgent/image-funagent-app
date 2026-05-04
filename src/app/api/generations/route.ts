@@ -20,6 +20,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const staleQueuedAfterMs = 15 * 60 * 1000;
+const workerLockId = 294781604;
 const xaiDefaultBaseUrl = "https://api-xai.ainaibahub.com/v1";
 
 const envValue = (value: string | undefined) => {
@@ -207,42 +208,52 @@ function imageProviderFromEnv() {
 }
 
 async function expireStaleQueuedGenerations(userId: string) {
-  const staleBefore = new Date(Date.now() - staleQueuedAfterMs);
-  const staleGenerations = await prisma.generation.findMany({
-    where: {
-      userId,
-      status: "QUEUED",
-      createdAt: { lt: staleBefore },
-    },
-    select: {
-      id: true,
-      usageDate: true,
-    },
-  });
+  const lockRows = await prisma.$queryRaw<{ locked: boolean }[]>`
+    select pg_try_advisory_lock(${workerLockId}) as locked
+  `;
+  const locked = lockRows[0]?.locked === true;
+  if (!locked) return;
 
-  if (staleGenerations.length === 0) return;
+  try {
+    const staleBefore = new Date(Date.now() - staleQueuedAfterMs);
+    const staleGenerations = await prisma.generation.findMany({
+      where: {
+        userId,
+        status: "QUEUED",
+        createdAt: { lt: staleBefore },
+      },
+      select: {
+        id: true,
+        usageDate: true,
+      },
+    });
 
-  await prisma.$transaction(async (tx) => {
-    for (const generation of staleGenerations) {
-      await tx.generation.update({
-        where: { id: generation.id },
-        data: {
-          status: "FAILED",
-          errorMessage: "生成任务超时，额度已退回，请重新生成。",
-          completedAt: new Date(),
-        },
-      });
+    if (staleGenerations.length === 0) return;
 
-      await tx.dailyUsage.updateMany({
-        where: {
-          userId,
-          usageDate: generation.usageDate,
-          reservedCount: { gt: 0 },
-        },
-        data: {
-          reservedCount: { decrement: 1 },
-        },
-      });
-    }
-  });
+    await prisma.$transaction(async (tx) => {
+      for (const generation of staleGenerations) {
+        await tx.generation.update({
+          where: { id: generation.id },
+          data: {
+            status: "FAILED",
+            errorMessage: "生成任务超时，额度已退回，请重新生成。",
+            completedAt: new Date(),
+          },
+        });
+
+        await tx.dailyUsage.updateMany({
+          where: {
+            userId,
+            usageDate: generation.usageDate,
+            reservedCount: { gt: 0 },
+          },
+          data: {
+            reservedCount: { decrement: 1 },
+          },
+        });
+      }
+    });
+  } finally {
+    await prisma.$queryRaw`select pg_advisory_unlock(${workerLockId})`.catch(console.error);
+  }
 }
