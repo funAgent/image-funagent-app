@@ -85,6 +85,8 @@ function generationStatusMeta(status: Generation["status"]) {
   };
 }
 
+const queuedWaitHint = "一般需要等待 10 分钟左右";
+
 export function ImageWorkbench() {
   const [user, setUser] = useState<User | null>(null);
   const [quota, setQuota] = useState<Quota | null>(null);
@@ -151,7 +153,7 @@ export function ImageWorkbench() {
 
     const timer = window.setInterval(() => {
       refreshGenerations().catch(() => setMessage("加载生成记录失败"));
-    }, 2500);
+    }, 10000);
 
     return () => window.clearInterval(timer);
   }, [generations, user]);
@@ -826,6 +828,9 @@ function History({ quota, generations }: { quota: Quota; generations: Generation
                           )}
                         </div>
                         <p className="text-sm font-semibold">{statusMeta.label}</p>
+                        {generation.status === "QUEUED" ? (
+                          <p className="mt-1 text-xs text-[color:rgba(120,53,15,0.82)]">{queuedWaitHint}</p>
+                        ) : null}
                       </div>
                     </div>
                   )}
@@ -856,6 +861,11 @@ function History({ quota, generations }: { quota: Quota; generations: Generation
                   <div className="max-h-20 overflow-y-auto text-sm leading-5 text-[var(--ink)]">
                     {generation.prompt}
                   </div>
+                  {generation.status === "QUEUED" ? (
+                    <p className="mt-1.5 rounded-[6px] bg-[var(--warning-soft)] px-2 py-1.5 text-xs leading-4 text-[var(--warning)]">
+                      {queuedWaitHint}
+                    </p>
+                  ) : null}
                   {generation.errorMessage ? (
                     <p className="mt-1.5 line-clamp-2 rounded-[6px] bg-[var(--danger-soft)] px-2 py-1.5 text-xs leading-4 text-[var(--danger)]">
                       {generation.errorMessage}

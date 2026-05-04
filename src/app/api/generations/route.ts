@@ -19,7 +19,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const staleQueuedAfterMs = 2 * 60 * 60 * 1000;
+const staleQueuedAfterMs = 15 * 60 * 1000;
 const xaiDefaultBaseUrl = "https://api-xai.ainaibahub.com/v1";
 
 const envValue = (value: string | undefined) => {
@@ -40,6 +40,10 @@ export async function GET() {
         take: 24,
       }),
     ]);
+
+    if (generations.some((generation) => generation.status === "QUEUED")) {
+      after(() => triggerGenerationWorker().catch(console.error));
+    }
 
     return jsonOk({
       quota,
