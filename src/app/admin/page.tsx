@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Gauge, Loader2, LogOut, ShieldCheck, WandSparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AdminPanel } from "@/components/admin-panel";
@@ -88,17 +89,17 @@ export default function AdminPage() {
                 </div>
                 <h1 className="text-sm font-semibold sm:text-base">FunAgent Image</h1>
               </div>
-              <a href="/" className={cx(secondaryButton, "h-9 px-3 text-sm")}>
+              <Link href="/" className={cx(secondaryButton, "h-9 px-3 text-sm")}>
                 返回主页
-              </a>
+              </Link>
             </div>
           </header>
           <div className="grid min-h-[400px] place-items-center">
             <div className="text-center">
               <Notice tone="danger">{error ?? "无权限访问"}</Notice>
-              <a href="/" className={cx(primaryButton, "mt-4 inline-flex h-10 px-4 text-sm")}>
+              <Link href="/" className={cx(primaryButton, "mt-4 inline-flex h-10 px-4 text-sm")}>
                 返回主页
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -144,9 +145,9 @@ export default function AdminPage() {
                   </strong>
                 </div>
               ) : null}
-              <a href="/" className={cx(secondaryButton, "h-9 px-2.5 text-sm")}>
+              <Link href="/" className={cx(secondaryButton, "h-9 px-2.5 text-sm")}>
                 返回主页
-              </a>
+              </Link>
               <button onClick={logout} className={cx(secondaryButton, "h-9 px-2.5 text-sm")}>
                 <LogOut size={15} />
                 退出

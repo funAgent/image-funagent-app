@@ -1,5 +1,11 @@
 import { type NextRequest } from "next/server";
 import { z } from "zod";
+import {
+  createAdminAuditLog,
+  hasQuotaChanges,
+  quotaChanges,
+  quotaSnapshot,
+} from "@/lib/admin-audit";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ApiError, jsonError, jsonOk } from "@/lib/http";
@@ -19,7 +25,7 @@ export async function PATCH(
   context: RouteContext<"/api/admin/users/[id]/quota">,
 ) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
     const { id } = await context.params;
     const payload = quotaSchema.parse(await request.json());
 
@@ -28,10 +34,57 @@ export async function PATCH(
       throw new ApiError("NOT_FOUND", "用户不存在。", 404);
     }
 
+    const beforeQuota = quotaSnapshot(user);
+    const previousStatus = user.status;
+    const previousRole = user.role;
+
     const updated = await prisma.user.update({
       where: { id },
       data: payload,
     });
+
+    if (payload.status !== undefined && previousStatus !== updated.status) {
+      await createAdminAuditLog({
+        action: "USER_STATUS_CHANGED",
+        actorUserId: admin.id,
+        targetUserId: updated.id,
+        summary: `将用户 ${updated.id} ${updated.status === "BLOCKED" ? "停用" : "启用"}`,
+        metadata: {
+          userId: updated.id,
+          before: { status: previousStatus },
+          after: { status: updated.status },
+        },
+      });
+    }
+
+    if (payload.role !== undefined && previousRole !== updated.role) {
+      await createAdminAuditLog({
+        action: "USER_ROLE_CHANGED",
+        actorUserId: admin.id,
+        targetUserId: updated.id,
+        summary: `将用户 ${updated.id} 角色改为 ${updated.role}`,
+        metadata: {
+          userId: updated.id,
+          before: { role: previousRole },
+          after: { role: updated.role },
+        },
+      });
+    }
+
+    const afterQuota = quotaSnapshot(updated);
+    const changes = quotaChanges(beforeQuota, afterQuota);
+    if (hasQuotaChanges(changes)) {
+      await createAdminAuditLog({
+        action: "USER_QUOTA_CHANGED",
+        actorUserId: admin.id,
+        targetUserId: updated.id,
+        summary: `修改用户 ${updated.id} 的额度`,
+        metadata: {
+          userId: updated.id,
+          changes,
+        },
+      });
+    }
 
     return jsonOk({
       user: {

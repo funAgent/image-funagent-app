@@ -1,5 +1,11 @@
 import { type NextRequest } from "next/server";
 import { z } from "zod";
+import {
+  createAdminAuditLog,
+  hasQuotaChanges,
+  quotaChanges,
+  quotaSnapshot,
+} from "@/lib/admin-audit";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ApiError, jsonError, jsonOk } from "@/lib/http";
@@ -19,7 +25,7 @@ export async function PATCH(
   context: RouteContext<"/api/admin/invites/[id]">,
 ) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
     const { id } = await context.params;
     const payload = updateInviteSchema.parse(await request.json());
 
@@ -27,6 +33,8 @@ export async function PATCH(
     if (!invite) {
       throw new ApiError("NOT_FOUND", "邀请码不存在。", 404);
     }
+
+    const beforeQuota = quotaSnapshot(invite);
 
     const updated = await prisma.inviteCode.update({
       where: { id },
@@ -48,6 +56,39 @@ export async function PATCH(
           : {}),
       },
     });
+
+    if (payload.disabled !== undefined && Boolean(invite.disabledAt) !== Boolean(updated.disabledAt)) {
+      await createAdminAuditLog({
+        action: "INVITE_STATUS_CHANGED",
+        actorUserId: admin.id,
+        targetInviteId: updated.id,
+        summary: `${updated.disabledAt ? "停用" : "启用"}邀请码 ${updated.codePreview}`,
+        metadata: {
+          inviteId: updated.id,
+          codePreview: updated.codePreview,
+          label: updated.label,
+          before: { disabled: Boolean(invite.disabledAt) },
+          after: { disabled: Boolean(updated.disabledAt) },
+        },
+      });
+    }
+
+    const afterQuota = quotaSnapshot(updated);
+    const changes = quotaChanges(beforeQuota, afterQuota);
+    if (hasQuotaChanges(changes)) {
+      await createAdminAuditLog({
+        action: "INVITE_QUOTA_CHANGED",
+        actorUserId: admin.id,
+        targetInviteId: updated.id,
+        summary: `修改邀请码额度 ${updated.codePreview}`,
+        metadata: {
+          inviteId: updated.id,
+          codePreview: updated.codePreview,
+          label: updated.label,
+          changes,
+        },
+      });
+    }
 
     return jsonOk({ invite: publicInvite(updated) });
   } catch (error) {

@@ -3,6 +3,7 @@
 import {
   Ban,
   Check,
+  Clock3,
   Copy,
   Edit3,
   Loader2,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import {
+  type AdminAuditLog,
   type AdminInvite,
   type User,
   Notice,
@@ -30,22 +32,35 @@ import {
 
 export function AdminPanel() {
   const [invites, setInvites] = useState<AdminInvite[]>([]);
+  const [logs, setLogs] = useState<AdminAuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (showSpinner = true) => {
+    if (showSpinner) {
+      setLoading(true);
+    }
     setError(null);
     try {
-      const invitesResponse = await fetch("/api/admin/invites", { cache: "no-store" });
+      const [invitesResponse, logsResponse] = await Promise.all([
+        fetch("/api/admin/invites", { cache: "no-store" }),
+        fetch("/api/admin/audit-logs", { cache: "no-store" }),
+      ]);
       const invitesData = await invitesResponse.json();
+      const logsData = await logsResponse.json();
 
       if (!invitesData.ok) {
         setError(invitesData.error ?? "加载邀请码失败");
         return;
       }
 
+      if (!logsData.ok) {
+        setError(logsData.error ?? "加载操作记录失败");
+        return;
+      }
+
       setInvites(invitesData.invites);
+      setLogs(logsData.logs);
     } catch {
       setError("加载管理数据失败");
     } finally {
@@ -54,7 +69,11 @@ export function AdminPanel() {
   };
 
   useEffect(() => {
-    load();
+    const frame = window.requestAnimationFrame(() => {
+      void load(false);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   return (
@@ -65,7 +84,7 @@ export function AdminPanel() {
             <h2 className="text-lg font-semibold sm:text-xl">运营管理</h2>
           </div>
           <div className="flex items-center gap-1.5">
-            <button onClick={load} className={cx(secondaryButton, "h-9 px-3 text-sm")}>
+            <button onClick={() => void load()} className={cx(secondaryButton, "h-9 px-3 text-sm")}>
               {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
               刷新
             </button>
@@ -80,6 +99,7 @@ export function AdminPanel() {
       ) : null}
 
       <InviteManager invites={invites} onChanged={load} />
+      <AuditLogPanel logs={logs} />
     </section>
   );
 }
@@ -153,7 +173,7 @@ function InviteManager({
                 <th className="py-2.5 pr-3 font-medium">角色</th>
                 <th className="py-2.5 pr-3 font-medium">额度</th>
                 <th className="py-2.5 pr-3 font-medium">状态</th>
-                <th className="py-2.5 pr-3 font-medium">使用</th>
+                <th className="py-2.5 pr-3 font-medium">记录</th>
                 <th className="py-2.5 font-medium">操作</th>
               </tr>
             </thead>
@@ -206,7 +226,8 @@ function InviteManager({
                     </td>
                     <td className="py-2.5 pr-3 text-xs text-[var(--muted-strong)]">
                       <div>{invite.useCount} 次</div>
-                      <div>{invite.lastUsedAt ? formatDate(invite.lastUsedAt) : formatDate(invite.createdAt)}</div>
+                      <div>创建：{formatDate(invite.createdAt)}</div>
+                      <div>最近：{invite.lastUsedAt ? formatDate(invite.lastUsedAt) : "-"}</div>
                     </td>
                     <td className="py-2.5">
                       <div className="flex items-center gap-1.5">
@@ -296,7 +317,9 @@ function InviteManager({
                 <div className="mt-2 text-xs text-[var(--muted-strong)]">
                   {invite.label ? <div>标签：{invite.label}</div> : null}
                   <div>额度：每日 {invite.dailyLimitOverride ?? "默认"} · 图 {invite.maxRefImagesOverride ?? "默认"} · {invite.maxFileMbOverride ?? "默认"}MB</div>
-                  <div>使用：{invite.useCount} 次 · {invite.lastUsedAt ? formatDate(invite.lastUsedAt) : formatDate(invite.createdAt)}</div>
+                  <div>创建：{formatDate(invite.createdAt)}</div>
+                  <div>最近使用：{invite.lastUsedAt ? formatDate(invite.lastUsedAt) : "-"}</div>
+                  <div>使用次数：{invite.useCount} 次</div>
                 </div>
               </div>
             );
@@ -323,6 +346,75 @@ function InviteManager({
       ) : null}
     </div>
   );
+}
+
+function AuditLogPanel({ logs }: { logs: AdminAuditLog[] }) {
+  return (
+    <div className="border-t border-[var(--stroke)]">
+      <div className="border-b border-[var(--stroke)] p-3 sm:p-4">
+        <div className="flex items-center gap-2">
+          <Clock3 size={16} className="text-[var(--accent)]" />
+          <h3 className="text-base font-semibold sm:text-lg">最近操作记录</h3>
+        </div>
+      </div>
+
+      <div className="p-3 sm:p-4">
+        {logs.length === 0 ? (
+          <p className="py-6 text-center text-sm text-[var(--muted-strong)]">暂无操作记录</p>
+        ) : (
+          <div className="grid gap-2">
+            {logs.map((log) => (
+              <div
+                key={log.id}
+                className="rounded-[8px] border border-[var(--stroke)] bg-white p-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm font-medium text-[var(--ink)]">
+                    {log.summary ?? actionLabel(log.action)}
+                  </div>
+                  <div className="text-xs text-[var(--muted-strong)]">
+                    {formatDate(log.createdAt)}
+                  </div>
+                </div>
+                <div className="mt-1.5 text-xs text-[var(--muted-strong)]">
+                  <span>操作人：{log.actorUser?.wechatOpenId ?? shortId(log.actorUser?.id)}</span>
+                  {log.targetUser ? (
+                    <span> · 用户：{log.targetUser.wechatOpenId ?? shortId(log.targetUser.id)}</span>
+                  ) : null}
+                  {log.targetInvite ? (
+                    <span> · 邀请码：{log.targetInvite.codePreview}</span>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function actionLabel(action: AdminAuditLog["action"]) {
+  switch (action) {
+    case "INVITE_CREATED":
+      return "创建邀请码";
+    case "INVITE_STATUS_CHANGED":
+      return "修改邀请码状态";
+    case "INVITE_QUOTA_CHANGED":
+      return "修改邀请码额度";
+    case "USER_STATUS_CHANGED":
+      return "修改用户状态";
+    case "USER_QUOTA_CHANGED":
+      return "修改用户额度";
+    case "USER_ROLE_CHANGED":
+      return "修改用户角色";
+  }
+}
+
+function shortId(value?: string | null) {
+  if (!value) return "-";
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
 function CreateInviteModal({
@@ -578,4 +670,3 @@ function InviteQuotaModal({
     </div>
   );
 }
-

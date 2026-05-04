@@ -68,6 +68,37 @@ export type AdminInvite = {
   claimed: boolean;
 };
 
+export type AdminAuditLog = {
+  id: string;
+  action:
+    | "INVITE_CREATED"
+    | "INVITE_STATUS_CHANGED"
+    | "INVITE_QUOTA_CHANGED"
+    | "USER_STATUS_CHANGED"
+    | "USER_QUOTA_CHANGED"
+    | "USER_ROLE_CHANGED";
+  summary: string | null;
+  metadata: unknown;
+  createdAt: string;
+  actorUser: {
+    id: string;
+    wechatOpenId: string | null;
+    role: "USER" | "ADMIN";
+  } | null;
+  targetUser: {
+    id: string;
+    wechatOpenId: string | null;
+    role: "USER" | "ADMIN";
+    status: "ACTIVE" | "BLOCKED";
+  } | null;
+  targetInvite: {
+    id: string;
+    codePreview: string;
+    label: string | null;
+    role: "USER" | "ADMIN";
+  } | null;
+};
+
 export type AdminTab = "invites" | "users";
 
 export const panelClass =

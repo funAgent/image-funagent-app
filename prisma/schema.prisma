@@ -39,6 +39,15 @@ enum GenerationMode {
   REFERENCE
 }
 
+enum AdminAuditAction {
+  INVITE_CREATED
+  INVITE_STATUS_CHANGED
+  INVITE_QUOTA_CHANGED
+  USER_STATUS_CHANGED
+  USER_QUOTA_CHANGED
+  USER_ROLE_CHANGED
+}
+
 model User {
   id                   String       @id @default(cuid())
   wechatOpenId         String?      @unique
@@ -58,6 +67,8 @@ model User {
   generations    Generation[]
   inviteCode     InviteCode?   @relation("InviteCodeUser")
   createdInvites InviteCode[]  @relation("InviteCodeCreator")
+  adminAuditActions    AdminAuditLog[] @relation("AdminAuditActor")
+  adminAuditTargetLogs AdminAuditLog[] @relation("AdminAuditTargetUser")
 
   @@index([role])
   @@index([status])
@@ -84,10 +95,32 @@ model InviteCode {
 
   user      User? @relation("InviteCodeUser", fields: [userId], references: [id], onDelete: SetNull)
   createdBy User? @relation("InviteCodeCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  auditLogs  AdminAuditLog[]
 
   @@index([createdAt])
   @@index([expiresAt])
   @@index([disabledAt])
+}
+
+model AdminAuditLog {
+  id            String           @id @default(cuid())
+  action        AdminAuditAction
+  actorUserId   String?
+  targetUserId  String?
+  targetInviteId String?
+  summary       String?
+  metadata      Json?
+  createdAt     DateTime         @default(now())
+
+  actorUser    User?       @relation("AdminAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  targetUser   User?       @relation("AdminAuditTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetInvite InviteCode? @relation(fields: [targetInviteId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([targetInviteId, createdAt])
 }
 
 model Session {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createAdminAuditLog } from "@/lib/admin-audit";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ApiError, jsonError, jsonOk } from "@/lib/http";
@@ -48,6 +49,23 @@ export async function POST(request: Request) {
       maxFileMbOverride: payload.maxFileMbOverride,
       expiresAt,
       createdById: admin.id,
+    });
+
+    await createAdminAuditLog({
+      action: "INVITE_CREATED",
+      actorUserId: admin.id,
+      targetInviteId: invite.id,
+      summary: `创建了 ${invite.role} 邀请码 ${invite.codePreview}`,
+      metadata: {
+        inviteId: invite.id,
+        codePreview: invite.codePreview,
+        role: invite.role,
+        label: invite.label,
+        dailyLimitOverride: invite.dailyLimitOverride,
+        maxRefImagesOverride: invite.maxRefImagesOverride,
+        maxFileMbOverride: invite.maxFileMbOverride,
+        expiresAt: invite.expiresAt?.toISOString() ?? null,
+      },
     });
 
     return jsonOk({
