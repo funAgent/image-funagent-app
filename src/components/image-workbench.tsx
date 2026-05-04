@@ -597,6 +597,7 @@ function Creator({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const submittingRef = useRef(false);
 
   const usagePercent = useMemo(() => {
     if (!quota.dailyLimit) return 0;
@@ -605,29 +606,38 @@ function Creator({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submittingRef.current) return;
+
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.set("prompt", prompt);
-    formData.set("size", size);
-    formData.set("quality", "medium");
-    formData.set("outputFormat", outputFormat);
-    files.forEach((file) => formData.append("images", file));
+    try {
+      const formData = new FormData();
+      formData.set("prompt", prompt);
+      formData.set("size", size);
+      formData.set("quality", "medium");
+      formData.set("outputFormat", outputFormat);
+      files.forEach((file) => formData.append("images", file));
 
-    const response = await fetch("/api/generations", {
-      method: "POST",
-      body: formData,
-    });
-    const data = await response.json();
-    setSubmitting(false);
+      const response = await fetch("/api/generations", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
 
-    if (!data.ok) {
-      setError(data.error ?? "生成失败");
-      return;
+      if (!data.ok) {
+        setError(data.error ?? "生成失败");
+        return;
+      }
+
+      onDone(data.generation, data.quota);
+    } catch {
+      setError("网络异常，请稍后重试。");
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
-
-    onDone(data.generation, data.quota);
   };
 
   return (

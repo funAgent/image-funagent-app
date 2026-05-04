@@ -22,11 +22,15 @@ import { getFiles, validateUploads, type ValidatedUpload } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 600;
+
+const staleQueuedAfterMs = 30 * 60 * 1000;
 
 export async function GET() {
   try {
     const user = await requireUser();
+    await expireStaleQueuedGenerations(user.id);
+
     const [quota, generations] = await Promise.all([
       getQuota(user),
       prisma.generation.findMany({
@@ -127,6 +131,47 @@ export async function POST(request: NextRequest) {
 
     return jsonError(error);
   }
+}
+
+async function expireStaleQueuedGenerations(userId: string) {
+  const staleBefore = new Date(Date.now() - staleQueuedAfterMs);
+  const staleGenerations = await prisma.generation.findMany({
+    where: {
+      userId,
+      status: "QUEUED",
+      createdAt: { lt: staleBefore },
+    },
+    select: {
+      id: true,
+      usageDate: true,
+    },
+  });
+
+  if (staleGenerations.length === 0) return;
+
+  await prisma.$transaction(async (tx) => {
+    for (const generation of staleGenerations) {
+      await tx.generation.update({
+        where: { id: generation.id },
+        data: {
+          status: "FAILED",
+          errorMessage: "生成任务超时，额度已退回，请重新生成。",
+          completedAt: new Date(),
+        },
+      });
+
+      await tx.dailyUsage.updateMany({
+        where: {
+          userId,
+          usageDate: generation.usageDate,
+          reservedCount: { gt: 0 },
+        },
+        data: {
+          reservedCount: { decrement: 1 },
+        },
+      });
+    }
+  });
 }
 
 async function processGeneration(input: {
