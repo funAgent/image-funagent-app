@@ -5,13 +5,11 @@ import {
   Check,
   ChevronRight,
   Clipboard,
-  Clock,
   Copy,
   Download,
   FileImage,
   Gauge,
   ImageIcon,
-  Images,
   KeyRound,
   Loader2,
   LockKeyhole,
@@ -121,9 +119,9 @@ const panelClass =
 const buttonBase =
   "inline-flex items-center justify-center gap-2 rounded-[8px] font-medium tracking-normal transition disabled:cursor-not-allowed";
 const primaryButton =
-  `${buttonBase} bg-[var(--ink)] text-white shadow-[0_12px_30px_rgba(17,24,39,0.16)] hover:bg-[#2a2f29] disabled:bg-[#9aa39a]`;
+  `${buttonBase} bg-[var(--accent)] text-white shadow-[0_12px_28px_rgba(15,118,110,0.22)] hover:bg-[var(--accent-strong)] disabled:bg-[#98a6b3]`;
 const secondaryButton =
-  `${buttonBase} border border-[var(--stroke)] bg-white text-[var(--ink)] hover:border-[var(--ink)] hover:bg-[var(--surface-muted)]`;
+  `${buttonBase} border border-[var(--stroke)] bg-white text-[var(--ink)] hover:border-[var(--accent)] hover:bg-[var(--surface-muted)]`;
 const inputClass =
   "w-full rounded-[8px] border border-[var(--stroke)] bg-white px-3 text-[var(--ink)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--ink)] focus:ring-2 focus:ring-[var(--focus)]";
 
@@ -148,6 +146,33 @@ function formatMb(size: number) {
 function getGenerationImageFilename(generation: Generation) {
   const extension = generation.outputFormat === "jpeg" ? "jpg" : generation.outputFormat;
   return `funagent-${generation.id}.${extension || "png"}`;
+}
+
+function generationStatusMeta(status: Generation["status"]) {
+  if (status === "SUCCEEDED") {
+    return {
+      label: "已完成",
+      textClass: "text-[var(--success)]",
+      badgeClass: "border-[rgba(22,130,85,0.22)] bg-[var(--success-soft)] text-[var(--success)]",
+      tileClass: "border-[rgba(22,130,85,0.24)] bg-[var(--success-soft)] text-[var(--success)]",
+    };
+  }
+
+  if (status === "FAILED") {
+    return {
+      label: "生成失败",
+      textClass: "text-[var(--danger)]",
+      badgeClass: "border-[rgba(180,35,24,0.22)] bg-[var(--danger-soft)] text-[var(--danger)]",
+      tileClass: "border-[rgba(180,35,24,0.22)] bg-[var(--danger-soft)] text-[var(--danger)]",
+    };
+  }
+
+  return {
+    label: "生成中",
+    textClass: "text-[var(--warning)]",
+    badgeClass: "border-[rgba(180,83,9,0.24)] bg-[var(--warning-soft)] text-[var(--warning)]",
+    tileClass: "border-[rgba(180,83,9,0.24)] bg-[var(--warning-soft)] text-[var(--warning)]",
+  };
 }
 
 function numberOrNull(value: string) {
@@ -236,7 +261,7 @@ export function ImageWorkbench() {
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--ink)]">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-4 py-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-4 px-3 py-3 sm:gap-5 sm:px-5 sm:py-4 lg:px-6">
         <TopBar user={user} quota={quota} onLogout={logout} />
 
         {message ? <Notice tone="warn">{message}</Notice> : null}
@@ -250,16 +275,15 @@ export function ImageWorkbench() {
           </div>
         ) : user && quota ? (
           <>
-            <section className="grid gap-5 xl:grid-cols-[minmax(0,1.06fr)_minmax(400px,0.74fr)]">
+            <section className="grid items-start gap-4 lg:grid-cols-[410px_minmax(0,1fr)] xl:grid-cols-[430px_minmax(0,1fr)]">
               <Creator
                 quota={quota}
-                latest={generations[0] ?? null}
                 onDone={(generation, nextQuota) => {
                   setGenerations((items) => [generation, ...items]);
                   setQuota(nextQuota);
                 }}
               />
-              <SideRail quota={quota} generations={generations} />
+              <History quota={quota} generations={generations} />
             </section>
             {user.role === "ADMIN" ? <AdminPanel /> : null}
           </>
@@ -281,10 +305,10 @@ function TopBar({
   onLogout: () => Promise<void>;
 }) {
   return (
-    <header className="sticky top-0 z-20 -mx-4 border-b border-[var(--stroke)] bg-[rgba(246,247,242,0.86)] px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-      <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3">
+    <header className="sticky top-0 z-20 -mx-3 border-b border-[var(--stroke)] bg-[rgba(246,247,251,0.88)] px-3 py-3 backdrop-blur-xl sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6">
+      <div className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-[8px] bg-[var(--ink)] text-white">
+          <div className="grid size-10 shrink-0 place-items-center rounded-[8px] bg-[var(--accent)] text-white shadow-[0_10px_24px_rgba(15,118,110,0.24)]">
             <WandSparkles size={20} />
           </div>
           <div className="min-w-0">
@@ -292,7 +316,7 @@ function TopBar({
               <h1 className="truncate text-base font-semibold sm:text-lg">
                 FunAgent Image
               </h1>
-              <span className="hidden rounded-full bg-[var(--lime)] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-normal text-[var(--ink)] sm:inline-flex">
+              <span className="hidden rounded-full bg-[var(--lime-soft)] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-normal text-[var(--warning)] sm:inline-flex">
                 gpt-image-2
               </span>
             </div>
@@ -583,11 +607,9 @@ function LoginPanel({ onLoggedIn }: { onLoggedIn: () => Promise<void> }) {
 
 function Creator({
   quota,
-  latest,
   onDone,
 }: {
   quota: Quota;
-  latest: Generation | null;
   onDone: (generation: Generation, quota: Quota) => void;
 }) {
   const [prompt, setPrompt] = useState("");
@@ -601,8 +623,11 @@ function Creator({
 
   const usagePercent = useMemo(() => {
     if (!quota.dailyLimit) return 0;
-    return Math.min(100, Math.round((quota.used / quota.dailyLimit) * 100));
-  }, [quota.dailyLimit, quota.used]);
+    return Math.min(
+      100,
+      Math.round(((quota.used + quota.reserved) / quota.dailyLimit) * 100),
+    );
+  }, [quota.dailyLimit, quota.reserved, quota.used]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -641,226 +666,147 @@ function Creator({
   };
 
   return (
-    <section className={cx(panelClass, "overflow-hidden")}>
-      <div className="grid xl:min-h-[720px] xl:grid-cols-[minmax(0,0.92fr)_minmax(360px,0.72fr)]">
-        <form onSubmit={submit} className="flex flex-col border-b border-[var(--stroke)] xl:border-b-0 xl:border-r">
-          <div className="border-b border-[var(--stroke)] p-3 sm:p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-normal text-[var(--accent)]">
-                  Create
-                </p>
-                <h2 className="mt-1 text-xl font-semibold sm:text-2xl">图片生成</h2>
-              </div>
-              <div className="min-w-[180px]">
-                <div className="mb-2 flex justify-between text-xs text-[var(--muted-strong)]">
-                  <span>{quota.usageDate}</span>
-                  <span>
-                    {quota.remaining}/{quota.dailyLimit}
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-[var(--line)]">
-                  <div
-                    className="h-2 rounded-full bg-[var(--lime)]"
-                    style={{ width: `${usagePercent}%` }}
-                  />
-                </div>
-              </div>
+    <section className={cx(panelClass, "overflow-hidden lg:sticky lg:top-[84px]")}>
+      <form onSubmit={submit} className="flex flex-col">
+        <div className="border-b border-[var(--stroke)] p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-normal text-[var(--accent)]">
+                Create
+              </p>
+              <h2 className="mt-1 text-xl font-semibold sm:text-2xl">图片生成</h2>
+            </div>
+            <div className="rounded-full border border-[var(--stroke)] bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium text-[var(--muted-strong)]">
+              medium · {outputFormat.toUpperCase()}
             </div>
           </div>
 
-          <div className="grid flex-1 gap-3 p-3 sm:gap-5 sm:p-5">
-            <MobileOverview
-              quota={quota}
-              latest={latest}
-              submitting={submitting}
-              size={size}
-            />
-            <label className="block">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="text-sm font-medium text-[var(--muted-strong)]">
-                  描述
-                </span>
-                <span className="text-xs text-[var(--muted)]">
-                  {prompt.length}/1200
-                </span>
-              </div>
-              <textarea
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                maxLength={1200}
-                placeholder="一张清晨咖啡店里的产品海报，木质桌面，柔和自然光，干净高级"
-                className={cx(
-                  inputClass,
-                  "min-h-[96px] resize-y p-3 leading-6 sm:min-h-[180px] sm:p-4 sm:leading-7 xl:min-h-[240px]",
-                )}
-              />
-            </label>
-
-            <AspectPicker value={size} onChange={setSize} />
-
-            <div className="grid gap-3">
-              <SegmentedControl
-                label="格式"
-                value={outputFormat}
-                onChange={setOutputFormat}
-                options={formatOptions}
+          <div className="mt-4">
+            <div className="mb-2 flex justify-between text-xs text-[var(--muted-strong)]">
+              <span>{quota.usageDate}</span>
+              <span>
+                剩余 {quota.remaining} / 总计 {quota.dailyLimit}
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-[var(--line)]">
+              <div
+                className="h-2 rounded-full bg-[var(--accent)]"
+                style={{ width: `${usagePercent}%` }}
               />
             </div>
-
-            <div className="rounded-[8px] border border-dashed border-[var(--stroke-strong)] bg-[var(--surface-muted)] p-2.5 sm:p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">参考图</div>
-                  <div className="mt-1 truncate text-xs text-[var(--muted-strong)]">
-                    {files.length}/{quota.maxRefImages} · 单张 {quota.maxFileMb} MB · 总量{" "}
-                    {quota.maxTotalUploadMb} MB
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                  className={cx(secondaryButton, "h-10 shrink-0 px-3 text-sm")}
-                >
-                  <Upload size={16} />
-                  上传
-                </button>
-              </div>
-              <input
-                ref={inputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                multiple
-                className="hidden"
-                onChange={(event) => {
-                  const selected = Array.from(event.target.files ?? []);
-                  setFiles(selected.slice(0, quota.maxRefImages));
-                }}
-              />
-              {files.length > 0 ? (
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {files.map((file) => (
-                    <div
-                      key={`${file.name}-${file.size}`}
-                      className="flex min-w-0 items-center gap-3 rounded-[8px] border border-[var(--stroke)] bg-white p-2"
-                    >
-                      <div className="grid size-9 shrink-0 place-items-center rounded-[6px] bg-[var(--line)] text-[var(--accent)]">
-                        <FileImage size={16} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{file.name}</div>
-                        <div className="text-xs text-[var(--muted)]">{formatMb(file.size)}</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFiles((items) => items.filter((item) => item !== file))
-                        }
-                        className="grid size-8 shrink-0 place-items-center rounded-[6px] text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
-                        aria-label="移除参考图"
-                      >
-                        <X size={15} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            {error ? <Notice tone="danger">{error}</Notice> : null}
           </div>
 
-          <div className="border-t border-[var(--stroke)] p-3 sm:p-5">
-            <button
-              disabled={submitting || quota.remaining <= 0}
-              className={cx(primaryButton, "h-12 w-full px-4")}
-            >
-              {submitting ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
-              {submitting ? "生成中" : quota.remaining <= 0 ? "今日额度已用完" : "生成图片"}
-            </button>
-          </div>
-        </form>
-
-        <ResultPreview
-          latest={latest}
-          submitting={submitting}
-          size={size}
-          className="hidden xl:flex"
-        />
-      </div>
-    </section>
-  );
-}
-
-function MobileOverview({
-  quota,
-  latest,
-  submitting,
-  size,
-}: {
-  quota: Quota;
-  latest: Generation | null;
-  submitting: boolean;
-  size: string;
-}) {
-  const aspectClass =
-    size === "9:16"
-      ? "aspect-[9/16]"
-      : size === "3:4"
-        ? "aspect-[3/4]"
-        : size === "16:9"
-          ? "aspect-video"
-          : size === "4:3"
-            ? "aspect-[4/3]"
-            : "aspect-square";
-
-  return (
-    <div className="grid gap-3 xl:hidden">
-      <div className="grid grid-cols-[minmax(0,1fr)_104px] gap-2 sm:grid-cols-[minmax(0,1fr)_132px] sm:gap-3">
-        <div className="rounded-[8px] border border-[var(--stroke)] bg-white p-2.5 sm:p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-[var(--accent)]">
-              今日状态
-            </span>
-            <Clock size={15} className="text-[var(--muted)]" />
-          </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-3 gap-2">
             <CompactStat label="剩余" value={quota.remaining.toString()} />
             <CompactStat label="已用" value={quota.used.toString()} />
-            <CompactStat label="参考" value={`${quota.maxRefImages}`} />
+            <CompactStat label="生成中" value={quota.reserved.toString()} />
           </div>
         </div>
 
-        <div className="rounded-[8px] bg-[#111814] p-2 text-white">
-          <div className="mb-2 flex items-center justify-between text-[11px] uppercase text-white/50">
-            <span>预览</span>
-            <Images size={14} className="text-[var(--lime)]" />
-          </div>
-          <div
-            className={cx(
-              "relative grid w-full place-items-center overflow-hidden rounded-[6px] border border-white/12 bg-[#1b211d]",
-              aspectClass,
-              size === "9:16" || size === "3:4"
-                ? "mx-auto max-h-[86px] w-auto sm:max-h-[118px]"
-                : "",
-            )}
-          >
-            {latest?.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={latest.imageUrl} alt={latest.prompt} className="size-full object-cover" />
-            ) : (
-              <div className="grid size-full min-h-20 place-items-center bg-[linear-gradient(135deg,#222b24_0%,#131917_60%,#2f4128_100%)]">
-                {submitting ? (
-                  <Loader2 className="animate-spin text-[var(--lime)]" size={18} />
-                ) : (
-                  <ImageIcon size={18} className="text-white/45" />
-                )}
+        <div className="grid flex-1 gap-4 p-4 sm:p-5">
+          <label className="block">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="text-sm font-medium text-[var(--muted-strong)]">
+                描述
+              </span>
+              <span className="text-xs text-[var(--muted)]">
+                {prompt.length}/1200
+              </span>
+            </div>
+            <textarea
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              maxLength={1200}
+              placeholder="一张清晨咖啡店里的产品海报，木质桌面，柔和自然光，干净高级"
+              className={cx(
+                inputClass,
+                "min-h-[148px] resize-y p-3 leading-6 sm:min-h-[190px] sm:p-4 sm:leading-7",
+              )}
+            />
+          </label>
+
+          <AspectPicker value={size} onChange={setSize} />
+
+          <SegmentedControl
+            label="格式"
+            value={outputFormat}
+            onChange={setOutputFormat}
+            options={formatOptions}
+          />
+
+          <div className="rounded-[8px] border border-dashed border-[var(--stroke-strong)] bg-[var(--surface-muted)] p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium">参考图</div>
+                <div className="mt-1 truncate text-xs text-[var(--muted-strong)]">
+                  {files.length}/{quota.maxRefImages} · 单张 {quota.maxFileMb} MB · 总量{" "}
+                  {quota.maxTotalUploadMb} MB
+                </div>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                className={cx(secondaryButton, "h-10 shrink-0 px-3 text-sm")}
+              >
+                <Upload size={16} />
+                上传
+              </button>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                const selected = Array.from(event.target.files ?? []);
+                setFiles(selected.slice(0, quota.maxRefImages));
+              }}
+            />
+            {files.length > 0 ? (
+              <div className="mt-3 grid gap-2">
+                {files.map((file) => (
+                  <div
+                    key={`${file.name}-${file.size}`}
+                    className="flex min-w-0 items-center gap-3 rounded-[8px] border border-[var(--stroke)] bg-white p-2"
+                  >
+                    <div className="grid size-9 shrink-0 place-items-center rounded-[6px] bg-[var(--line)] text-[var(--accent)]">
+                      <FileImage size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{file.name}</div>
+                      <div className="text-xs text-[var(--muted)]">{formatMb(file.size)}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFiles((items) => items.filter((item) => item !== file))
+                      }
+                      className="grid size-8 shrink-0 place-items-center rounded-[6px] text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
+                      aria-label="移除参考图"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
+
+          {error ? <Notice tone="danger">{error}</Notice> : null}
         </div>
-      </div>
-    </div>
+
+        <div className="border-t border-[var(--stroke)] bg-[var(--surface)] p-4 sm:p-5">
+          <button
+            disabled={submitting || quota.remaining <= 0}
+            className={cx(primaryButton, "h-12 w-full px-4")}
+          >
+            {submitting ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+            {submitting ? "已加入生成队列" : quota.remaining <= 0 ? "今日额度已用完" : "生成图片"}
+          </button>
+        </div>
+      </form>
+    </section>
   );
 }
 
@@ -900,128 +846,7 @@ function AspectPicker({
   );
 }
 
-function ResultPreview({
-  latest,
-  submitting,
-  size,
-  className,
-}: {
-  latest: Generation | null;
-  submitting: boolean;
-  size: string;
-  className?: string;
-}) {
-  const aspectClass =
-    size === "9:16"
-      ? "aspect-[9/16]"
-      : size === "3:4"
-        ? "aspect-[3/4]"
-        : size === "16:9"
-          ? "aspect-video"
-          : size === "4:3"
-            ? "aspect-[4/3]"
-            : size === "1024x1536"
-              ? "aspect-[2/3]"
-              : size === "1536x1024"
-                ? "aspect-[3/2]"
-                : "aspect-square";
-
-  return (
-    <div className={cx("flex min-h-[540px] flex-col bg-[#111814] p-5 text-white", className)}>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-normal text-white/50">
-            Output
-          </p>
-          <h3 className="mt-1 text-xl font-semibold">结果预览</h3>
-        </div>
-        <Images size={21} className="text-[var(--lime)]" />
-      </div>
-
-      <div className="grid flex-1 place-items-center">
-        <div
-          className={cx(
-            "relative grid w-full max-w-[520px] place-items-center overflow-hidden rounded-[8px] border border-white/12 bg-[#1b211d]",
-            aspectClass,
-          )}
-        >
-          {latest?.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={latest.imageUrl} alt={latest.prompt} className="size-full object-cover" />
-          ) : (
-            <div className="grid size-full place-items-center bg-[linear-gradient(135deg,#222b24_0%,#131917_55%,#2f4128_100%)] p-6">
-              <div className="w-full max-w-[260px] text-center">
-                <div className="mx-auto mb-4 grid size-12 place-items-center rounded-[8px] bg-white/8 text-[var(--lime)]">
-                  {submitting ? (
-                    <Loader2 className="animate-spin" size={22} />
-                  ) : (
-                    <ImageIcon size={22} />
-                  )}
-                </div>
-                <p className="text-sm text-white/72">
-                  {submitting ? "正在生成画面" : "生成结果会显示在这里"}
-                </p>
-              </div>
-            </div>
-          )}
-          {latest?.status === "FAILED" ? (
-            <div className="absolute inset-x-4 bottom-4 rounded-[8px] border border-red-300/20 bg-red-950/70 p-3 text-sm text-red-50 backdrop-blur">
-              {latest.errorMessage ?? "生成失败"}
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {latest ? (
-        <div className="mt-4 rounded-[8px] border border-white/12 bg-white/[0.06] p-4">
-          <div className="mb-2 flex items-center justify-between gap-3 text-xs text-white/50">
-            <span>{latest.mode === "REFERENCE" ? "参考图生成" : "文本生成"}</span>
-            <span>{formatDate(latest.createdAt)}</span>
-          </div>
-          <p className="line-clamp-2 text-sm leading-6 text-white/80">{latest.prompt}</p>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function SideRail({
-  quota,
-  generations,
-}: {
-  quota: Quota;
-  generations: Generation[];
-}) {
-  return (
-    <aside className="grid gap-5">
-      <section className={cx(panelClass, "p-5")}>
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-normal text-[var(--accent)]">
-              Usage
-            </p>
-            <h2 className="mt-1 text-xl font-semibold">今日状态</h2>
-          </div>
-          <Clock size={20} className="text-[var(--muted)]" />
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <StatTile label="剩余" value={quota.remaining.toString()} />
-          <StatTile label="已用" value={quota.used.toString()} />
-          <StatTile label="保留" value={quota.reserved.toString()} />
-        </div>
-        <div className="mt-4 grid gap-2 text-sm text-[var(--muted-strong)]">
-          <InfoLine label="参考图上限" value={`${quota.maxRefImages} 张`} />
-          <InfoLine label="单张文件" value={`${quota.maxFileMb} MB`} />
-          <InfoLine label="总上传量" value={`${quota.maxTotalUploadMb} MB`} />
-        </div>
-      </section>
-
-      <History generations={generations} />
-    </aside>
-  );
-}
-
-function History({ generations }: { generations: Generation[] }) {
+function History({ quota, generations }: { quota: Quota; generations: Generation[] }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
@@ -1056,83 +881,131 @@ function History({ generations }: { generations: Generation[] }) {
   };
 
   return (
-    <section className={cx(panelClass, "p-5")}>
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-normal text-[var(--accent)]">
-            Gallery
-          </p>
-          <h2 className="mt-1 text-xl font-semibold">历史记录</h2>
+    <section className={cx(panelClass, "overflow-hidden")}>
+      <div className="border-b border-[var(--stroke)] p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-normal text-[var(--accent)]">
+              Gallery
+            </p>
+            <h2 className="mt-1 text-xl font-semibold sm:text-2xl">生成记录</h2>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <CompactStat label="剩余" value={quota.remaining.toString()} />
+            <CompactStat label="已用" value={quota.used.toString()} />
+            <CompactStat label="队列" value={quota.reserved.toString()} />
+          </div>
         </div>
-        <ImageIcon size={20} className="text-[var(--muted)]" />
       </div>
 
       {generations.length === 0 ? (
-        <div className="grid min-h-[240px] place-items-center rounded-[8px] border border-[var(--stroke)] bg-[var(--surface-muted)] text-center text-sm text-[var(--muted-strong)]">
-          暂无生成记录
+        <div className="grid min-h-[360px] place-items-center bg-[var(--surface-muted)] p-8 text-center">
+          <div>
+            <div className="mx-auto mb-4 grid size-12 place-items-center rounded-[8px] border border-[var(--stroke)] bg-white text-[var(--accent)]">
+              <ImageIcon size={22} />
+            </div>
+            <p className="font-medium">暂无生成记录</p>
+            <p className="mt-1 text-sm text-[var(--muted-strong)]">
+              提交后会在这里查看进度、复制提示词和下载图片
+            </p>
+          </div>
         </div>
       ) : (
-        <div className="grid max-h-[620px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-1">
-          {generations.map((generation) => (
-            <article
-              key={generation.id}
-              className="grid grid-cols-[108px_minmax(0,1fr)] overflow-hidden rounded-[8px] border border-[var(--stroke)] bg-white"
-            >
-              <div className="aspect-square bg-[var(--line)]">
-                {generation.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={generation.imageUrl}
-                    alt={generation.prompt}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="grid size-full place-items-center text-xs text-[var(--muted)]">
-                    {generation.status === "FAILED" ? "失败" : "处理中"}
-                  </div>
-                )}
-              </div>
-              <div className="flex min-w-0 flex-col p-3">
-                <div className="mb-2 flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
-                  <span>{generation.mode === "REFERENCE" ? "参考图" : "文本"}</span>
-                  <span>{formatDate(generation.createdAt)}</span>
-                </div>
-                <p className="line-clamp-3 text-sm leading-5">{generation.prompt}</p>
-                {generation.errorMessage ? (
-                  <p className="mt-2 line-clamp-2 text-xs text-[var(--danger)]">
-                    {generation.errorMessage}
-                  </p>
-                ) : null}
-                <div className="mt-auto flex flex-wrap gap-2 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => copyPrompt(generation)}
-                    className={cx(secondaryButton, "h-8 min-w-[68px] px-2.5 text-xs")}
-                    title="复制提示词"
-                  >
-                    {copiedId === generation.id ? <Check size={14} /> : <Copy size={14} />}
-                    {copiedId === generation.id ? "已复制" : "复制"}
-                  </button>
+        <div className="grid max-h-none gap-3 overflow-y-auto p-3 sm:grid-cols-2 sm:p-4 lg:max-h-[calc(100vh-120px)] xl:grid-cols-2">
+          {generations.map((generation) => {
+            const statusMeta = generationStatusMeta(generation.status);
+            return (
+              <article
+                key={generation.id}
+                className="overflow-hidden rounded-[8px] border border-[var(--stroke)] bg-white shadow-[0_10px_26px_rgba(17,24,39,0.05)]"
+              >
+                <div className="relative aspect-[4/3] bg-[var(--line)]">
                   {generation.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={generation.imageUrl}
+                      alt={generation.prompt}
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <div className={cx("grid size-full place-items-center border-b", statusMeta.tileClass)}>
+                      <div className="text-center">
+                        <div className="mx-auto mb-3 grid size-11 place-items-center rounded-[8px] bg-white/70">
+                          {generation.status === "QUEUED" ? (
+                            <Loader2 size={22} className="animate-spin" />
+                          ) : generation.status === "FAILED" ? (
+                            <X size={22} />
+                          ) : (
+                            <Check size={22} />
+                          )}
+                        </div>
+                        <p className="text-sm font-semibold">{statusMeta.label}</p>
+                      </div>
+                    </div>
+                  )}
+                  <div
+                    className={cx(
+                      "absolute left-3 top-3 inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold shadow-sm backdrop-blur",
+                      statusMeta.badgeClass,
+                    )}
+                  >
+                    {generation.status === "QUEUED" ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : generation.status === "FAILED" ? (
+                      <X size={13} />
+                    ) : (
+                      <Check size={13} />
+                    )}
+                    {statusMeta.label}
+                  </div>
+                </div>
+
+                <div className="flex min-h-[190px] flex-col p-3.5">
+                  <div className="mb-2 flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
+                    <span className={cx("font-medium", statusMeta.textClass)}>
+                      {generation.mode === "REFERENCE" ? "参考图生成" : "文本生成"}
+                    </span>
+                    <span>{formatDate(generation.createdAt)}</span>
+                  </div>
+                  <p className="line-clamp-4 text-sm leading-6 text-[var(--ink)]">
+                    {generation.prompt}
+                  </p>
+                  {generation.errorMessage ? (
+                    <p className="mt-2 line-clamp-2 rounded-[8px] bg-[var(--danger-soft)] px-2.5 py-2 text-xs leading-5 text-[var(--danger)]">
+                      {generation.errorMessage}
+                    </p>
+                  ) : null}
+                  <div className="mt-auto flex flex-wrap gap-2 pt-3">
                     <button
                       type="button"
-                      onClick={() => downloadImage(generation)}
-                      disabled={downloadingId === generation.id}
-                      className={cx(secondaryButton, "h-8 min-w-[68px] px-2.5 text-xs")}
-                      title="下载图片"
+                      onClick={() => copyPrompt(generation)}
+                      className={cx(secondaryButton, "h-9 min-w-[78px] px-3 text-xs")}
+                      title="复制提示词"
                     >
-                      {downloadingId === generation.id ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Download size={14} />
-                      )}
-                      {downloadingId === generation.id ? "下载中" : "下载"}
+                      {copiedId === generation.id ? <Check size={14} /> : <Copy size={14} />}
+                      {copiedId === generation.id ? "已复制" : "复制"}
                     </button>
-                  ) : null}
+                    {generation.imageUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => downloadImage(generation)}
+                        disabled={downloadingId === generation.id}
+                        className={cx(primaryButton, "h-9 min-w-[78px] px-3 text-xs")}
+                        title="下载图片"
+                      >
+                        {downloadingId === generation.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Download size={14} />
+                        )}
+                        {downloadingId === generation.id ? "下载中" : "下载"}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
@@ -1714,24 +1587,6 @@ function Notice({
       )}
     >
       {children}
-    </div>
-  );
-}
-
-function InfoLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-2 first:border-t-0 first:pt-0">
-      <span>{label}</span>
-      <strong className="font-semibold text-[var(--ink)]">{value}</strong>
-    </div>
-  );
-}
-
-function StatTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[8px] border border-[var(--stroke)] bg-white p-3">
-      <div className="text-xs text-[var(--muted)]">{label}</div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
     </div>
   );
 }

@@ -1,22 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f6f1;
-  --foreground: #171a16;
-  --ink: #171a16;
-  --surface: #fffefa;
-  --surface-muted: #eef2e8;
-  --stroke: #d9dfd1;
-  --stroke-strong: #aebaa5;
-  --line: #e6ebdf;
-  --muted: #858d7c;
-  --muted-strong: #596150;
-  --accent: #25543f;
-  --lime: #d8ff45;
-  --lime-soft: #f0ffd4;
-  --danger: #a23b2a;
-  --focus: rgba(37, 84, 63, 0.18);
-  --shadow-soft: 0 18px 50px rgba(28, 37, 26, 0.08);
+  --background: #f6f7fb;
+  --foreground: #111827;
+  --ink: #111827;
+  --surface: #ffffff;
+  --surface-muted: #f1f4f8;
+  --stroke: #dde3ea;
+  --stroke-strong: #aeb8c5;
+  --line: #e8edf3;
+  --muted: #8a95a3;
+  --muted-strong: #536071;
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+  --lime: #f4c430;
+  --lime-soft: #fff4c7;
+  --success: #168255;
+  --success-soft: #e6f8ef;
+  --warning: #b45309;
+  --warning-soft: #fff4df;
+  --danger: #b42318;
+  --danger-soft: #fff0ee;
+  --focus: rgba(15, 118, 110, 0.18);
+  --shadow-soft: 0 16px 42px rgba(17, 24, 39, 0.08);
 }
 
 @theme inline {
@@ -40,7 +46,7 @@ select {
 }
 
 ::selection {
-  background: var(--lime);
+  background: #bff3e8;
   color: var(--ink);
 }
 
@@ -71,7 +77,7 @@ textarea {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c9d1c1;
+  background: #cbd5e1;
   border: 3px solid transparent;
   border-radius: 999px;
   background-clip: padding-box;
