@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ApiError, jsonError, jsonOk } from "@/lib/http";
 import { createInvite, publicInvite } from "@/lib/invites";
+import { RATE_LIMITS, rateLimitByUser } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ const inviteSchema = z.object({
 export async function GET() {
   try {
     await requireAdmin();
+    await rateLimitByUser(RATE_LIMITS.admin);
     const invites = await prisma.inviteCode.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -34,6 +36,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const admin = await requireAdmin();
+    await rateLimitByUser(RATE_LIMITS.admin);
     const payload = inviteSchema.parse(await request.json());
     const expiresAt = payload.expiresAt ? new Date(payload.expiresAt) : null;
 

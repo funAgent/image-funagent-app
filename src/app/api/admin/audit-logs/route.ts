@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/http";
+import { RATE_LIMITS, rateLimitByUser } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireAdmin();
+    await rateLimitByUser(RATE_LIMITS.admin);
 
     const logs = await prisma.adminAuditLog.findMany({
       orderBy: { createdAt: "desc" },

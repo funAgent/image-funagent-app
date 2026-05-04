@@ -38,7 +38,7 @@ const workerLockId = 294781604;
 const bucket = "generation-images";
 const xaiDefaultBaseUrl = "https://api-xai.ainaibahub.com/v1";
 const corsHeaders = {
-  "access-control-allow-origin": "*",
+  "access-control-allow-origin": "https://image.funagent.app",
   "access-control-allow-headers": "authorization, x-client-info, apikey, content-type, x-worker-secret",
 };
 

@@ -2,12 +2,14 @@ import { type NextRequest } from "next/server";
 import { createSession, setSessionCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ApiError, jsonError, jsonOk } from "@/lib/http";
+import { RATE_LIMITS, rateLimitByIp } from "@/lib/rate-limit";
 import { publicUser } from "@/lib/serializers";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
+    await rateLimitByIp(RATE_LIMITS.loginStatus);
     const attemptId = request.nextUrl.searchParams.get("attemptId");
     if (!attemptId) {
       throw new ApiError("BAD_REQUEST", "缺少登录请求。", 400);

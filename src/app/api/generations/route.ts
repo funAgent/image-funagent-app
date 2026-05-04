@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { appEnv } from "@/lib/env";
 import { ApiError, jsonError, jsonOk } from "@/lib/http";
 import { finalizeGenerationUsage, getQuota, reserveGeneration } from "@/lib/quota";
+import { RATE_LIMITS, rateLimitByUser } from "@/lib/rate-limit";
 import { publicGeneration } from "@/lib/serializers";
 import { getFiles, validateUploads } from "@/lib/uploads";
 
@@ -31,6 +32,7 @@ const envValue = (value: string | undefined) => {
 export async function GET() {
   try {
     const user = await requireUser();
+    await rateLimitByUser(RATE_LIMITS.generation);
     await expireStaleQueuedGenerations(user.id);
 
     const [quota, generations] = await Promise.all([
@@ -63,6 +65,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireUser();
     userId = user.id;
+    await rateLimitByUser(RATE_LIMITS.generation);
     const formData = await request.formData();
     const prompt = String(formData.get("prompt") ?? "").trim();
     const sizeRaw = String(formData.get("size") ?? "auto");

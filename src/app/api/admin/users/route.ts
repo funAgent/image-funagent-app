@@ -2,13 +2,15 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/http";
 import { todayInShanghai } from "@/lib/quota";
+import { RATE_LIMITS, rateLimitByUser } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
+    await rateLimitByUser(RATE_LIMITS.admin);
     const usageDate = todayInShanghai();
     const users = await prisma.user.findMany({
       orderBy: { createdAt: "desc" },

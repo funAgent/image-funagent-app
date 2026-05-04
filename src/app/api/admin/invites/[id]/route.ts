@@ -10,6 +10,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ApiError, jsonError, jsonOk } from "@/lib/http";
 import { publicInvite } from "@/lib/invites";
+import { RATE_LIMITS, rateLimitByUser } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,7 @@ export async function PATCH(
 ) {
   try {
     const admin = await requireAdmin();
+    await rateLimitByUser(RATE_LIMITS.admin);
     const { id } = await context.params;
     const payload = updateInviteSchema.parse(await request.json());
 

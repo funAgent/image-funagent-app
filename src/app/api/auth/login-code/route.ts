@@ -1,16 +1,19 @@
+import crypto from "node:crypto";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/http";
+import { RATE_LIMITS, rateLimitByIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 const LOGIN_CODE_TTL_MINUTES = 10;
 
 function randomLoginCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 export async function POST() {
   try {
+    await rateLimitByIp(RATE_LIMITS.loginCode);
     const expiresAt = new Date(Date.now() + LOGIN_CODE_TTL_MINUTES * 60 * 1000);
 
     await prisma.loginAttempt.updateMany({
