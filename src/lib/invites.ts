@@ -75,75 +75,73 @@ export async function redeemInviteCode(rawCode: string) {
   }
 
   const codeHash = hashInviteCode(normalized);
+  const invite = await prisma.inviteCode.findUnique({
+    where: { codeHash },
+    include: { user: true },
+  });
 
-  return prisma.$transaction(
-    async (tx) => {
-      const invite = await tx.inviteCode.findUnique({
-        where: { codeHash },
-        include: { user: true },
-      });
+  if (!invite) {
+    throw new ApiError("UNAUTHORIZED", "邀请码无效。", 401);
+  }
 
-      if (!invite) {
-        throw new ApiError("UNAUTHORIZED", "邀请码无效。", 401);
-      }
+  if (invite.disabledAt) {
+    throw new ApiError("FORBIDDEN", "邀请码已停用。", 403);
+  }
 
-      if (invite.disabledAt) {
-        throw new ApiError("FORBIDDEN", "邀请码已停用。", 403);
-      }
+  if (invite.expiresAt && invite.expiresAt <= new Date()) {
+    throw new ApiError("FORBIDDEN", "邀请码已过期。", 403);
+  }
 
-      if (invite.expiresAt && invite.expiresAt <= new Date()) {
-        throw new ApiError("FORBIDDEN", "邀请码已过期。", 403);
-      }
+  if (invite.user) {
+    if (invite.user.status !== "ACTIVE") {
+      throw new ApiError("FORBIDDEN", "账号已被停用。", 403);
+    }
 
-      if (invite.user) {
-        if (invite.user.status !== "ACTIVE") {
-          throw new ApiError("FORBIDDEN", "账号已被停用。", 403);
-        }
+    await prisma.inviteCode.update({
+      where: { id: invite.id },
+      data: {
+        useCount: { increment: 1 },
+        lastUsedAt: new Date(),
+      },
+    });
 
-        await tx.inviteCode.update({
-          where: { id: invite.id },
-          data: {
-            useCount: { increment: 1 },
-            lastUsedAt: new Date(),
-          },
-        });
+    return invite.user;
+  }
 
-        return invite.user;
-      }
-
-      const user = await tx.user.create({
-        data: {
-          nickname: invite.label,
-          role: invite.role,
-          dailyLimitOverride: invite.dailyLimitOverride,
-          maxRefImagesOverride: invite.maxRefImagesOverride,
-          maxFileMbOverride: invite.maxFileMbOverride,
-        },
-      });
-
-      const claimed = await tx.inviteCode.updateMany({
-        where: { id: invite.id, userId: null },
-        data: {
-          userId: user.id,
-          useCount: { increment: 1 },
-          lastUsedAt: new Date(),
-        },
-      });
-
-      if (claimed.count !== 1) {
-        await tx.user.delete({ where: { id: user.id } }).catch(() => undefined);
-        const currentInvite = await tx.inviteCode.findUnique({
-          where: { id: invite.id },
-          include: { user: true },
-        });
-        if (currentInvite?.user) return currentInvite.user;
-        throw new ApiError("UPSTREAM_ERROR", "邀请码登录失败，请重试。", 500);
-      }
-
-      return user;
+  const user = await prisma.user.create({
+    data: {
+      nickname: invite.label,
+      role: invite.role,
+      dailyLimitOverride: invite.dailyLimitOverride,
+      maxRefImagesOverride: invite.maxRefImagesOverride,
+      maxFileMbOverride: invite.maxFileMbOverride,
     },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-  );
+  });
+
+  const claimed = await prisma.inviteCode.updateMany({
+    where: { id: invite.id, userId: null },
+    data: {
+      userId: user.id,
+      useCount: { increment: 1 },
+      lastUsedAt: new Date(),
+    },
+  });
+
+  if (claimed.count === 1) {
+    return user;
+  }
+
+  await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
+  const currentInvite = await prisma.inviteCode.findUnique({
+    where: { id: invite.id },
+    include: { user: true },
+  });
+
+  if (currentInvite?.user) {
+    return currentInvite.user;
+  }
+
+  throw new ApiError("UPSTREAM_ERROR", "邀请码登录失败，请重试。", 500);
 }
 
 export function publicInvite(invite: {

@@ -1,4 +1,5 @@
 import { type NextRequest } from "next/server";
+import { after } from "next/server";
 import {
   createImageWithOpenAI,
   isImageAspectPreset,
@@ -7,6 +8,9 @@ import {
   isOutputFormat,
   resolveImageAspect,
   storeGeneratedImage,
+  type ImageQuality,
+  type ImageSize,
+  type OutputFormat,
 } from "@/lib/openai-images";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -14,7 +18,7 @@ import { appEnv } from "@/lib/env";
 import { ApiError, jsonError, jsonOk } from "@/lib/http";
 import { finalizeGenerationUsage, getQuota, reserveGeneration } from "@/lib/quota";
 import { publicGeneration } from "@/lib/serializers";
-import { getFiles, validateUploads } from "@/lib/uploads";
+import { getFiles, validateUploads, type ValidatedUpload } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,7 +47,6 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   let usageDate: Date | null = null;
-  let generationId: string | null = null;
   let userId: string | null = null;
 
   try {
@@ -99,25 +102,61 @@ export async function POST(request: NextRequest) {
             : undefined,
       },
     });
-    generationId = generation.id;
 
+    after(() =>
+      processGeneration({
+        generationId: generation.id,
+        userId: user.id,
+        usageDate: reservation.usageDate,
+        prompt: promptForOpenAI,
+        files: uploads,
+        size: resolvedAspect.size,
+        quality: qualityRaw,
+        outputFormat: outputFormatRaw,
+      }),
+    );
+
+    return jsonOk({
+      generation: publicGeneration(generation),
+      quota: await getQuota(user),
+    });
+  } catch (error) {
+    if (usageDate && userId) {
+      await finalizeGenerationUsage(userId, usageDate, false).catch(console.error);
+    }
+
+    return jsonError(error);
+  }
+}
+
+async function processGeneration(input: {
+  generationId: string;
+  userId: string;
+  usageDate: Date;
+  prompt: string;
+  files: ValidatedUpload[];
+  size: ImageSize;
+  quality: ImageQuality;
+  outputFormat: OutputFormat;
+}) {
+  try {
     const created = await createImageWithOpenAI({
-      prompt: promptForOpenAI,
-      files: uploads,
-      size: resolvedAspect.size,
-      quality: qualityRaw,
-      outputFormat: outputFormatRaw,
-      userId: user.id,
+      prompt: input.prompt,
+      files: input.files,
+      size: input.size,
+      quality: input.quality,
+      outputFormat: input.outputFormat,
+      userId: input.userId,
     });
 
     const stored = await storeGeneratedImage({
-      generationId: generation.id,
+      generationId: input.generationId,
       b64Json: created.b64Json,
-      outputFormat: outputFormatRaw,
+      outputFormat: input.outputFormat,
     });
 
-    const updated = await prisma.generation.update({
-      where: { id: generation.id },
+    await prisma.generation.update({
+      where: { id: input.generationId },
       data: {
         status: "SUCCEEDED",
         imageUrl: stored.url,
@@ -129,36 +168,26 @@ export async function POST(request: NextRequest) {
     });
 
     await finalizeGenerationUsage(
-      user.id,
-      usageDate,
+      input.userId,
+      input.usageDate,
       true,
       created.usage?.input_tokens,
       created.usage?.output_tokens,
     );
-
-    return jsonOk({
-      generation: publicGeneration(updated),
-      quota: await getQuota(user),
-    });
   } catch (error) {
-    if (usageDate && userId) {
-      await finalizeGenerationUsage(userId, usageDate, false).catch(console.error);
-    }
+    await finalizeGenerationUsage(input.userId, input.usageDate, false).catch(
+      console.error,
+    );
 
-    if (generationId) {
-      await prisma.generation
-        .update({
-          where: { id: generationId },
-          data: {
-            status: "FAILED",
-            errorMessage:
-              error instanceof Error ? error.message : "图片生成失败。",
-            completedAt: new Date(),
-          },
-        })
-        .catch(console.error);
-    }
-
-    return jsonError(error);
+    await prisma.generation
+      .update({
+        where: { id: input.generationId },
+        data: {
+          status: "FAILED",
+          errorMessage: error instanceof Error ? error.message : "图片生成失败。",
+          completedAt: new Date(),
+        },
+      })
+      .catch(console.error);
   }
 }

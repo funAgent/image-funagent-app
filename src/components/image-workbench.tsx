@@ -172,6 +172,17 @@ export function ImageWorkbench() {
     setLoading(false);
   };
 
+  const refreshGenerations = async () => {
+    const response = await fetch("/api/generations", { cache: "no-store" });
+    const data = await response.json();
+    if (!data.ok) {
+      setMessage(data.error ?? "加载生成记录失败");
+      return;
+    }
+    setQuota(data.quota);
+    setGenerations(data.generations);
+  };
+
   useEffect(() => {
     let active = true;
     fetch("/api/auth/me", { cache: "no-store" })
@@ -197,6 +208,18 @@ export function ImageWorkbench() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!user || !generations.some((generation) => generation.status === "QUEUED")) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      refreshGenerations().catch(() => setMessage("加载生成记录失败"));
+    }, 2500);
+
+    return () => window.clearInterval(timer);
+  }, [generations, user]);
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
