@@ -405,6 +405,30 @@ function LoginPanel({ onLoggedIn }: { onLoggedIn: () => Promise<void> }) {
             </button>
           </form>
 
+          <div className="mt-4 border-t border-[var(--stroke)] pt-4">
+            <p className="mb-3 text-center text-sm text-[var(--muted-strong)]">
+              扫码关注，选任意一篇文章「一键三连」，联系我获取邀请码即可免费使用
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col items-center gap-1.5">
+                <img
+                  src="/wechat-qr.jpg"
+                  alt="微信公众号"
+                  className="h-[140px] w-[140px] rounded-[8px] border border-[var(--stroke)] object-cover"
+                />
+                <span className="text-xs font-medium text-[var(--muted-strong)]">微信公众号</span>
+              </div>
+              <div className="flex flex-col items-center gap-1.5">
+                <img
+                  src="/xhs-qr.jpg"
+                  alt="小红书"
+                  className="h-[140px] w-[140px] rounded-[8px] border border-[var(--stroke)] object-cover"
+                />
+                <span className="text-xs font-medium text-[var(--muted-strong)]">小红书</span>
+              </div>
+            </div>
+          </div>
+
           {/* 公众号登录备用 - 暂时隐藏 */}
           <div className="hidden">
             <div className="mt-4 border-t border-[var(--stroke)] pt-3">
@@ -580,20 +604,25 @@ function Creator({
               <span className="text-sm font-medium text-[var(--muted-strong)]">
                 描述
               </span>
-              <span className="text-xs text-[var(--muted)]">
-                {prompt.length}/1200
+              <span className={cx("text-xs", prompt.length > 3200 ? "text-[var(--danger)] font-medium" : "text-[var(--muted)]")}>
+                {prompt.length}/3200
               </span>
             </div>
             <textarea
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-              maxLength={1200}
               placeholder="一张清晨咖啡店里的产品海报，木质桌面，柔和自然光，干净高级"
               className={cx(
                 inputClass,
+                prompt.length > 3200 && "border-[var(--danger)] focus:border-[var(--danger)]",
                 "min-h-[80px] resize-y p-2.5 text-sm leading-5 sm:min-h-[140px]",
               )}
             />
+            {prompt.length > 3200 ? (
+              <p className="mt-1.5 text-xs text-[var(--danger)]">
+                描述超过 3200 字上限，请精简后再提交
+              </p>
+            ) : null}
           </label>
 
           <AspectPicker value={size} onChange={setSize} />
@@ -668,11 +697,11 @@ function Creator({
 
         <div className="border-t border-[var(--stroke)] bg-[var(--surface)] p-3 sm:p-4">
           <button
-            disabled={submitting || quota.remaining <= 0}
+            disabled={submitting || quota.remaining <= 0 || prompt.length > 3200}
             className={cx(primaryButton, "h-11 w-full px-4")}
           >
             {submitting ? <Loader2 size={17} className="animate-spin" /> : <Sparkles size={17} />}
-            {submitting ? "已加入生成队列" : quota.remaining <= 0 ? "今日额度已用完" : "生成图片"}
+            {submitting ? "已加入生成队列" : prompt.length > 3200 ? "描述超出字数上限" : quota.remaining <= 0 ? "今日额度已用完" : "生成图片"}
           </button>
         </div>
       </form>
