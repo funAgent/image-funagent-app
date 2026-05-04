@@ -343,26 +343,9 @@ function LoginPanel({ onLoggedIn }: { onLoggedIn: () => Promise<void> }) {
   };
 
   return (
-    <section className="flex min-h-[calc(100vh-64px)] flex-col items-center justify-center gap-4 px-4 py-4 sm:min-h-[calc(100vh-72px)] sm:gap-5 lg:grid lg:min-h-[calc(100vh-80px)] lg:grid-cols-[minmax(0,1fr)_400px] lg:items-center lg:justify-center lg:gap-6 lg:px-0">
-      <div className="hidden w-full max-w-lg justify-self-end pr-8 lg:block">
-        <div className={cx(panelClass, "overflow-hidden")}>
-          <div className="grid min-h-[320px] place-items-center bg-[#111814] p-5">
-            <div className="relative aspect-[4/5] w-full max-w-[240px] overflow-hidden rounded-[8px] border border-white/15 bg-[linear-gradient(145deg,#f7efe4_0%,#e9f64a_35%,#53b9a5_58%,#1b4a75_100%)] shadow-2xl">
-              <div className="absolute inset-x-3 bottom-3 rounded-[8px] bg-black/70 p-2.5 text-white backdrop-blur">
-                <div className="mb-1.5 flex items-center gap-1.5 text-xs text-white/70">
-                  <Sparkles size={12} />
-                  Generated preview
-                </div>
-                <div className="h-2 w-11/12 rounded-full bg-white/70" />
-                <div className="mt-1.5 h-2 w-7/12 rounded-full bg-white/40" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="w-full max-w-sm lg:max-w-none">
-        <div className="mb-4 text-center lg:mb-5 lg:text-left">
+    <section className="flex min-h-[calc(100vh-64px)] flex-col items-center justify-center gap-4 px-4 py-4 sm:min-h-[calc(100vh-72px)] sm:gap-5 lg:min-h-[calc(100vh-80px)] lg:gap-6">
+      <div className="w-full max-w-sm">
+        <div className="mb-4 text-center lg:mb-5 lg:text-center">
           <div className="mb-2 inline-flex items-center gap-2">
             <div className="grid size-9 place-items-center rounded-[8px] bg-[var(--accent)] text-white shadow-[0_10px_24px_rgba(15,118,110,0.24)]">
               <WandSparkles size={18} />
@@ -375,7 +358,7 @@ function LoginPanel({ onLoggedIn }: { onLoggedIn: () => Promise<void> }) {
             AI 图片生成
           </h2>
           <p className="mt-1.5 text-sm leading-6 text-[var(--muted-strong)]">
-            使用 gpt-image-2 模型，每天免费使用 3 次，输入描述即可生成高质量图片
+            使用 gpt-image-2 模型，每天免费使用，输入描述即可生成高质量图片
           </p>
         </div>
 
