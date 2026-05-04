@@ -8,19 +8,17 @@ import {
   Loader2,
   Plus,
   RefreshCw,
-  Users,
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import {
   type AdminInvite,
-  type AdminUser,
   type User,
   Notice,
   RolePill,
   SmallNumberField,
-  SmallNumberInput,
   StatusPill,
+  buttonBase,
   cx,
   formatDate,
   inputClass,
@@ -31,33 +29,22 @@ import {
 } from "./shared";
 
 export function AdminPanel() {
-  const [users, setUsers] = useState<AdminUser[]>([]);
   const [invites, setInvites] = useState<AdminInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showUserModal, setShowUserModal] = useState(false);
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [usersResponse, invitesResponse] = await Promise.all([
-        fetch("/api/admin/users", { cache: "no-store" }),
-        fetch("/api/admin/invites", { cache: "no-store" }),
-      ]);
-      const usersData = await usersResponse.json();
+      const invitesResponse = await fetch("/api/admin/invites", { cache: "no-store" });
       const invitesData = await invitesResponse.json();
 
-      if (!usersData.ok) {
-        setError(usersData.error ?? "加载用户失败");
-        return;
-      }
       if (!invitesData.ok) {
         setError(invitesData.error ?? "加载邀请码失败");
         return;
       }
 
-      setUsers(usersData.users);
       setInvites(invitesData.invites);
     } catch {
       setError("加载管理数据失败");
@@ -78,13 +65,6 @@ export function AdminPanel() {
             <h2 className="text-lg font-semibold sm:text-xl">运营管理</h2>
           </div>
           <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setShowUserModal(true)}
-              className={cx(secondaryButton, "h-9 px-3 text-sm")}
-            >
-              <Users size={15} />
-              用户额度
-            </button>
             <button onClick={load} className={cx(secondaryButton, "h-9 px-3 text-sm")}>
               {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
               刷新
@@ -100,83 +80,7 @@ export function AdminPanel() {
       ) : null}
 
       <InviteManager invites={invites} onChanged={load} />
-
-      {showUserModal ? (
-        <UserQuotaModal users={users} onSaved={load} onClose={() => setShowUserModal(false)} />
-      ) : null}
     </section>
-  );
-}
-
-function UserQuotaModal({
-  users,
-  onSaved,
-  onClose,
-}: {
-  users: AdminUser[];
-  onSaved: () => Promise<void>;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-[12px] border border-[var(--stroke)] bg-[var(--surface)] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-[var(--stroke)] p-4">
-          <h3 className="text-lg font-semibold">用户额度管理</h3>
-          <button
-            onClick={onClose}
-            className="grid size-9 place-items-center rounded-[7px] text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4">
-          {/* 桌面端表格 */}
-          <div className="hidden lg:block">
-            {users.length === 0 ? (
-              <p className="py-6 text-center text-sm text-[var(--muted-strong)]">暂无用户</p>
-            ) : (
-              <table className="w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--stroke)] text-[var(--muted-strong)]">
-                    <th className="py-2.5 pr-3 font-medium">用户</th>
-                    <th className="py-2.5 pr-3 font-medium">角色</th>
-                    <th className="py-2.5 pr-3 font-medium">状态</th>
-                    <th className="py-2.5 pr-3 font-medium">今日</th>
-                    <th className="py-2.5 pr-3 font-medium">总生成</th>
-                    <th className="py-2.5 pr-3 font-medium">每日额度</th>
-                    <th className="py-2.5 pr-3 font-medium">参考图</th>
-                    <th className="py-2.5 pr-3 font-medium">单张MB</th>
-                    <th className="py-2.5 font-medium">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((adminUser) => (
-                    <AdminUserRow key={adminUser.id} user={adminUser} onSaved={onSaved} />
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {/* 移动端卡片列表 */}
-          <div className="grid gap-2 lg:hidden">
-            {users.map((adminUser) => (
-              <AdminUserCard key={adminUser.id} user={adminUser} onSaved={onSaved} />
-            ))}
-            {users.length === 0 ? (
-              <p className="py-6 text-center text-sm text-[var(--muted-strong)]">暂无用户</p>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -187,63 +91,10 @@ function InviteManager({
   invites: AdminInvite[];
   onChanged: () => Promise<void>;
 }) {
-  const [label, setLabel] = useState("");
-  const [role, setRole] = useState<User["role"]>("USER");
-  const [dailyLimit, setDailyLimit] = useState("");
-  const [maxRefImages, setMaxRefImages] = useState("");
-  const [maxFileMb, setMaxFileMb] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
-  const [createdCode, setCreatedCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingInvite, setEditingInvite] = useState<AdminInvite | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
-
-  const create = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setCreating(true);
-    setCreatedCode(null);
-    setError(null);
-
-    const response = await fetch("/api/admin/invites", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        label: label.trim() || null,
-        role,
-        dailyLimitOverride: numberOrNull(dailyLimit),
-        maxRefImagesOverride: numberOrNull(maxRefImages),
-        maxFileMbOverride: numberOrNull(maxFileMb),
-        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
-      }),
-    });
-    const data = await response.json();
-    setCreating(false);
-
-    if (!data.ok) {
-      setError(data.error ?? "创建邀请码失败");
-      return;
-    }
-
-    setCreatedCode(data.code);
-    setLabel("");
-    setDailyLimit("");
-    setMaxRefImages("");
-    setMaxFileMb("");
-    setExpiresAt("");
-    await onChanged();
-  };
-
-  const copyCode = async () => {
-    if (!createdCode) return;
-    try {
-      await navigator.clipboard.writeText(createdCode);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch {
-      setError("复制失败");
-    }
-  };
 
   const copyInviteCode = async (invite: AdminInvite) => {
     try {
@@ -270,85 +121,23 @@ function InviteManager({
   };
 
   return (
-    <div className="grid gap-0 lg:grid-cols-[340px_minmax(0,1fr)]">
-      <form onSubmit={create} className="border-b border-[var(--stroke)] p-3 sm:p-4 lg:border-b-0 lg:border-r">
-        <h3 className="text-base font-semibold sm:text-lg">发放邀请码</h3>
-        <div className="mt-3 space-y-2.5">
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-[var(--muted-strong)]">
-              标签
-            </span>
-            <input
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              placeholder="例如：早鸟用户 / 管理员"
-              className={cx(inputClass, "h-9")}
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-[var(--muted-strong)]">
-              角色
-            </span>
-            <select
-              value={role}
-              onChange={(event) => setRole(event.target.value as User["role"])}
-              className={cx(inputClass, "h-9")}
-            >
-              <option value="USER">USER</option>
-              <option value="ADMIN">ADMIN</option>
-            </select>
-          </label>
-
-          <div className="grid grid-cols-3 gap-2">
-            <SmallNumberField label="每日" value={dailyLimit} onChange={setDailyLimit} />
-            <SmallNumberField label="参考图" value={maxRefImages} onChange={setMaxRefImages} />
-            <SmallNumberField label="单张MB" value={maxFileMb} onChange={setMaxFileMb} />
-          </div>
-
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-[var(--muted-strong)]">
-              过期时间
-            </span>
-            <input
-              type="datetime-local"
-              value={expiresAt}
-              onChange={(event) => setExpiresAt(event.target.value)}
-              className={cx(inputClass, "h-9")}
-            />
-          </label>
-        </div>
-
-        {createdCode ? (
-          <div className="mt-3 rounded-[7px] border border-[var(--stroke-strong)] bg-[var(--lime-soft)] p-3">
-            <div className="mb-1.5 text-xs font-semibold uppercase text-[var(--accent)]">
-              New code
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <code className="break-all font-mono text-lg font-semibold">{createdCode}</code>
-              <button
-                type="button"
-                onClick={copyCode}
-                className={cx(secondaryButton, "size-9 shrink-0 p-0")}
-                aria-label="复制邀请码"
-              >
-                {copied ? <Check size={15} /> : <Copy size={15} />}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {error ? (
-          <Notice className="mt-3" tone="danger">
-            {error}
-          </Notice>
-        ) : null}
-
-        <button disabled={creating} className={cx(primaryButton, "mt-3 h-10 w-full px-4 text-sm")}>
-          {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-          创建邀请码
+    <div>
+      <div className="flex items-center justify-between border-b border-[var(--stroke)] p-3 sm:p-4">
+        <h3 className="text-base font-semibold sm:text-lg">邀请码</h3>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className={cx(primaryButton, "h-9 px-3 text-sm")}
+        >
+          <Plus size={15} />
+          发放邀请码
         </button>
-      </form>
+      </div>
+
+      {error ? (
+        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+          <Notice tone="danger">{error}</Notice>
+        </div>
+      ) : null}
 
       <div className="p-3 sm:p-4">
         {/* 桌面端表格 */}
@@ -420,13 +209,28 @@ function InviteManager({
                       <div>{invite.lastUsedAt ? formatDate(invite.lastUsedAt) : formatDate(invite.createdAt)}</div>
                     </td>
                     <td className="py-2.5">
-                      <button
-                        onClick={() => toggleInvite(invite)}
-                        className={cx(secondaryButton, "h-8 px-2.5 text-xs")}
-                      >
-                        {invite.disabledAt ? <Check size={14} /> : <Ban size={14} />}
-                        {invite.disabledAt ? "启用" : "停用"}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setEditingInvite(invite)}
+                          className={cx(secondaryButton, "h-8 px-2.5 text-xs")}
+                        >
+                          <Edit3 size={14} />
+                          额度
+                        </button>
+                        <button
+                          onClick={() => toggleInvite(invite)}
+                          className={cx(
+                            buttonBase,
+                            "h-8 px-2.5 text-xs rounded-[8px] font-medium",
+                            invite.disabledAt
+                              ? "border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                              : "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
+                          )}
+                        >
+                          {invite.disabledAt ? <Check size={14} /> : <Ban size={14} />}
+                          {invite.disabledAt ? "启用" : "停用"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -466,13 +270,28 @@ function InviteManager({
                     <RolePill role={invite.role} />
                     <StatusPill label={statusLabel} tone={statusTone} />
                   </div>
-                  <button
-                    onClick={() => toggleInvite(invite)}
-                    className={cx(secondaryButton, "h-7 shrink-0 px-2 text-xs")}
-                  >
-                    {invite.disabledAt ? <Check size={13} /> : <Ban size={13} />}
-                    {invite.disabledAt ? "启用" : "停用"}
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setEditingInvite(invite)}
+                      className={cx(secondaryButton, "h-7 shrink-0 px-2 text-xs")}
+                    >
+                      <Edit3 size={13} />
+                      额度
+                    </button>
+                    <button
+                      onClick={() => toggleInvite(invite)}
+                      className={cx(
+                        buttonBase,
+                        "h-7 shrink-0 px-2 text-xs rounded-[8px] font-medium",
+                        invite.disabledAt
+                          ? "border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                          : "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
+                      )}
+                    >
+                      {invite.disabledAt ? <Check size={13} /> : <Ban size={13} />}
+                      {invite.disabledAt ? "启用" : "停用"}
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-2 text-xs text-[var(--muted-strong)]">
                   {invite.label ? <div>标签：{invite.label}</div> : null}
@@ -487,214 +306,276 @@ function InviteManager({
           ) : null}
         </div>
       </div>
+
+      {showCreateModal ? (
+        <CreateInviteModal
+          onCreated={onChanged}
+          onClose={() => setShowCreateModal(false)}
+        />
+      ) : null}
+
+      {editingInvite ? (
+        <InviteQuotaModal
+          invite={editingInvite}
+          onSaved={onChanged}
+          onClose={() => setEditingInvite(null)}
+        />
+      ) : null}
     </div>
   );
 }
 
-function AdminUserRow({
-  user,
-  onSaved,
+function CreateInviteModal({
+  onCreated,
+  onClose,
 }: {
-  user: AdminUser;
-  onSaved: () => Promise<void>;
+  onCreated: () => Promise<void>;
+  onClose: () => void;
 }) {
-  const [dailyLimit, setDailyLimit] = useState(
-    user.dailyLimitOverride?.toString() ?? "",
+  const [label, setLabel] = useState("");
+  const [role, setRole] = useState<User["role"]>("USER");
+  const [dailyLimit, setDailyLimit] = useState("");
+  const [maxRefImages, setMaxRefImages] = useState("");
+  const [maxFileMb, setMaxFileMb] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [createdCode, setCreatedCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const create = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setCreating(true);
+    setCreatedCode(null);
+    setError(null);
+
+    const response = await fetch("/api/admin/invites", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        label: label.trim() || null,
+        role,
+        dailyLimitOverride: numberOrNull(dailyLimit),
+        maxRefImagesOverride: numberOrNull(maxRefImages),
+        maxFileMbOverride: numberOrNull(maxFileMb),
+        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+      }),
+    });
+    const data = await response.json();
+    setCreating(false);
+
+    if (!data.ok) {
+      setError(data.error ?? "创建邀请码失败");
+      return;
+    }
+
+    setCreatedCode(data.code);
+    setLabel("");
+    setDailyLimit("");
+    setMaxRefImages("");
+    setMaxFileMb("");
+    setExpiresAt("");
+    await onCreated();
+  };
+
+  const copyCode = async () => {
+    if (!createdCode) return;
+    try {
+      await navigator.clipboard.writeText(createdCode);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setError("复制失败");
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-[12px] border border-[var(--stroke)] bg-[var(--surface)] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[var(--stroke)] p-4">
+          <h3 className="text-lg font-semibold">发放邀请码</h3>
+          <button
+            onClick={onClose}
+            className="grid size-9 place-items-center rounded-[7px] text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={create} className="p-4">
+          <div className="space-y-2.5">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-[var(--muted-strong)]">
+                标签
+              </span>
+              <input
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+                placeholder="例如：早鸟用户 / 管理员"
+                className={cx(inputClass, "h-9")}
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-[var(--muted-strong)]">
+                角色
+              </span>
+              <select
+                value={role}
+                onChange={(event) => setRole(event.target.value as User["role"])}
+                className={cx(inputClass, "h-9")}
+              >
+                <option value="USER">USER</option>
+                <option value="ADMIN">ADMIN</option>
+              </select>
+            </label>
+
+            <div className="grid grid-cols-3 gap-2">
+              <SmallNumberField label="每日" value={dailyLimit} onChange={setDailyLimit} />
+              <SmallNumberField label="参考图" value={maxRefImages} onChange={setMaxRefImages} />
+              <SmallNumberField label="单张MB" value={maxFileMb} onChange={setMaxFileMb} />
+            </div>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-[var(--muted-strong)]">
+                过期时间
+              </span>
+              <input
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(event) => setExpiresAt(event.target.value)}
+                className={cx(inputClass, "h-9")}
+              />
+            </label>
+          </div>
+
+          {createdCode ? (
+            <div className="mt-3 rounded-[7px] border border-[var(--stroke-strong)] bg-[var(--lime-soft)] p-3">
+              <div className="mb-1.5 text-xs font-semibold uppercase text-[var(--accent)]">
+                New code
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <code className="break-all font-mono text-lg font-semibold">{createdCode}</code>
+                <button
+                  type="button"
+                  onClick={copyCode}
+                  className={cx(secondaryButton, "size-9 shrink-0 p-0")}
+                  aria-label="复制邀请码"
+                >
+                  {copied ? <Check size={15} /> : <Copy size={15} />}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {error ? (
+            <Notice className="mt-3" tone="danger">
+              {error}
+            </Notice>
+          ) : null}
+
+          <button disabled={creating} className={cx(primaryButton, "mt-3 h-10 w-full px-4 text-sm")}>
+            {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+            创建邀请码
+          </button>
+        </form>
+      </div>
+    </div>
   );
-  const [maxRefImages, setMaxRefImages] = useState(
-    user.maxRefImagesOverride?.toString() ?? "",
-  );
-  const [maxFileMb, setMaxFileMb] = useState(user.maxFileMbOverride?.toString() ?? "");
-  const [status, setStatus] = useState(user.status);
-  const [role, setRole] = useState(user.role);
+}
+
+function InviteQuotaModal({
+  invite,
+  onSaved,
+  onClose,
+}: {
+  invite: AdminInvite;
+  onSaved: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [dailyLimit, setDailyLimit] = useState(invite.dailyLimitOverride?.toString() ?? "");
+  const [maxRefImages, setMaxRefImages] = useState(invite.maxRefImagesOverride?.toString() ?? "");
+  const [maxFileMb, setMaxFileMb] = useState(invite.maxFileMbOverride?.toString() ?? "");
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const save = async () => {
     setSaving(true);
-    setSaveError(null);
+    setError(null);
     try {
-      const response = await fetch(`/api/admin/users/${user.id}/quota`, {
+      const response = await fetch(`/api/admin/invites/${invite.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           dailyLimitOverride: numberOrNull(dailyLimit),
           maxRefImagesOverride: numberOrNull(maxRefImages),
           maxFileMbOverride: numberOrNull(maxFileMb),
-          status,
-          role,
         }),
       });
       const data = await response.json();
       if (!data.ok) {
-        setSaveError(data.error ?? "保存失败");
+        setError(data.error ?? "保存失败");
         return;
       }
       await onSaved();
+      onClose();
     } catch {
-      setSaveError("网络异常");
+      setError("网络异常");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <tr className="border-b border-[var(--line)] align-middle">
-      <td className="max-w-[240px] truncate py-2.5 pr-3">
-        <div className="font-mono text-xs">{user.wechatOpenId ?? user.id}</div>
-        <div className="mt-1 text-xs text-[var(--muted)]">{formatDate(user.createdAt)}</div>
-      </td>
-      <td className="py-2.5 pr-3">
-        <select
-          value={role}
-          onChange={(event) => setRole(event.target.value as User["role"])}
-          className={cx(inputClass, "h-9 w-28 px-2")}
-        >
-          <option value="USER">USER</option>
-          <option value="ADMIN">ADMIN</option>
-        </select>
-      </td>
-      <td className="py-2.5 pr-3">
-        <select
-          value={status}
-          onChange={(event) => setStatus(event.target.value as User["status"])}
-          className={cx(inputClass, "h-9 w-32 px-2")}
-        >
-          <option value="ACTIVE">ACTIVE</option>
-          <option value="BLOCKED">BLOCKED</option>
-        </select>
-      </td>
-      <td className="py-2.5 pr-3">
-        {user.todayUsed}
-        {user.todayReserved ? ` + ${user.todayReserved}` : ""}
-      </td>
-      <td className="py-2.5 pr-3">{user.generationsCount}</td>
-      <td className="py-2.5 pr-3">
-        <SmallNumberInput value={dailyLimit} onChange={setDailyLimit} />
-      </td>
-      <td className="py-2.5 pr-3">
-        <SmallNumberInput value={maxRefImages} onChange={setMaxRefImages} />
-      </td>
-      <td className="py-2.5 pr-3">
-        <SmallNumberInput value={maxFileMb} onChange={setMaxFileMb} />
-      </td>
-      <td className="py-2.5">
-        <button onClick={save} className={cx(primaryButton, "h-9 px-3 text-sm")}>
-          {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-          保存
-        </button>
-        {saveError ? <div className="mt-1 text-xs text-[var(--danger)]">{saveError}</div> : null}
-      </td>
-    </tr>
-  );
-}
-
-function AdminUserCard({
-  user,
-  onSaved,
-}: {
-  user: AdminUser;
-  onSaved: () => Promise<void>;
-}) {
-  const [dailyLimit, setDailyLimit] = useState(user.dailyLimitOverride?.toString() ?? "");
-  const [maxRefImages, setMaxRefImages] = useState(user.maxRefImagesOverride?.toString() ?? "");
-  const [maxFileMb, setMaxFileMb] = useState(user.maxFileMbOverride?.toString() ?? "");
-  const [status, setStatus] = useState(user.status);
-  const [role, setRole] = useState(user.role);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  const save = async () => {
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const response = await fetch(`/api/admin/users/${user.id}/quota`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          dailyLimitOverride: numberOrNull(dailyLimit),
-          maxRefImagesOverride: numberOrNull(maxRefImages),
-          maxFileMbOverride: numberOrNull(maxFileMb),
-          status,
-          role,
-        }),
-      });
-      const data = await response.json();
-      if (!data.ok) {
-        setSaveError(data.error ?? "保存失败");
-        return;
-      }
-      await onSaved();
-    } catch {
-      setSaveError("网络异常");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="rounded-[7px] border border-[var(--stroke)] bg-white p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 truncate font-mono text-xs">{user.wechatOpenId ?? user.id}</div>
-        <div className="flex items-center gap-1.5">
-          <select
-            value={role}
-            onChange={(event) => setRole(event.target.value as User["role"])}
-            className={cx(inputClass, "h-7 w-20 px-1.5 text-xs")}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-[12px] border border-[var(--stroke)] bg-[var(--surface)] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[var(--stroke)] p-4">
+          <h3 className="text-lg font-semibold">
+            编辑额度
+            <code className="ml-2 font-mono text-sm font-normal text-[var(--muted-strong)]">{invite.codePreview}</code>
+          </h3>
+          <button
+            onClick={onClose}
+            className="grid size-9 place-items-center rounded-[7px] text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
           >
-            <option value="USER">USER</option>
-            <option value="ADMIN">ADMIN</option>
-          </select>
-          <select
-            value={status}
-            onChange={(event) => setStatus(event.target.value as User["status"])}
-            className={cx(inputClass, "h-7 w-24 px-1.5 text-xs")}
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-4">
+          <div className="space-y-3">
+            <SmallNumberField label="每日额度" value={dailyLimit} onChange={setDailyLimit} />
+            <SmallNumberField label="参考图上限" value={maxRefImages} onChange={setMaxRefImages} />
+            <SmallNumberField label="单张 MB 上限" value={maxFileMb} onChange={setMaxFileMb} />
+          </div>
+
+          {error ? (
+            <Notice className="mt-3" tone="danger">{error}</Notice>
+          ) : null}
+
+          <button
+            onClick={save}
+            disabled={saving}
+            className={cx(primaryButton, "mt-4 h-10 w-full px-4 text-sm")}
           >
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="BLOCKED">BLOCKED</option>
-          </select>
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            保存
+          </button>
         </div>
       </div>
-      <div className="mt-2 text-xs text-[var(--muted-strong)]">
-        今日 {user.todayUsed}{user.todayReserved ? ` +${user.todayReserved}` : ""} · 总计 {user.generationsCount} · {formatDate(user.createdAt)}
-      </div>
-      <div className="mt-2 flex items-center gap-1.5">
-        <div className="flex-1">
-          <span className="text-[10px] text-[var(--muted)]">额度</span>
-          <input
-            value={dailyLimit}
-            onChange={(event) => setDailyLimit(event.target.value)}
-            inputMode="numeric"
-            placeholder="默认"
-            className={cx(inputClass, "h-7 w-full px-1.5 text-xs")}
-          />
-        </div>
-        <div className="flex-1">
-          <span className="text-[10px] text-[var(--muted)]">参考图</span>
-          <input
-            value={maxRefImages}
-            onChange={(event) => setMaxRefImages(event.target.value)}
-            inputMode="numeric"
-            placeholder="默认"
-            className={cx(inputClass, "h-7 w-full px-1.5 text-xs")}
-          />
-        </div>
-        <div className="flex-1">
-          <span className="text-[10px] text-[var(--muted)]">单张MB</span>
-          <input
-            value={maxFileMb}
-            onChange={(event) => setMaxFileMb(event.target.value)}
-            inputMode="numeric"
-            placeholder="默认"
-            className={cx(inputClass, "h-7 w-full px-1.5 text-xs")}
-          />
-        </div>
-        <button onClick={save} className={cx(primaryButton, "mt-3 h-7 shrink-0 px-2 text-xs")}>
-          {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-          保存
-        </button>
-      </div>
-      {saveError ? <div className="mt-1.5 text-xs text-[var(--danger)]">{saveError}</div> : null}
     </div>
   );
 }
+

@@ -75,7 +75,7 @@ export const panelClass =
 export const buttonBase =
   "inline-flex items-center justify-center gap-2 rounded-[8px] font-medium tracking-normal transition disabled:cursor-not-allowed";
 export const primaryButton =
-  `${buttonBase} bg-[var(--accent)] text-white shadow-[0_12px_28px_rgba(15,118,110,0.22)] hover:bg-[var(--accent-strong)] disabled:bg-[#98a6b3]`;
+  `${buttonBase} bg-[#0f766e] text-white shadow-[0_12px_28px_rgba(15,118,110,0.22)] hover:bg-[#115e59] disabled:bg-[#98a6b3]`;
 export const secondaryButton =
   `${buttonBase} border border-[var(--stroke)] bg-white text-[var(--ink)] hover:border-[var(--accent)] hover:bg-[var(--surface-muted)]`;
 export const inputClass =
