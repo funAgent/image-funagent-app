@@ -4,20 +4,18 @@ import {
   Ban,
   Check,
   Copy,
+  Edit3,
   Loader2,
   Plus,
   RefreshCw,
-  Ticket,
   Users,
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import {
   type AdminInvite,
-  type AdminTab,
   type AdminUser,
   type User,
-  AdminTabButton,
   Notice,
   RolePill,
   SmallNumberField,
@@ -35,65 +33,41 @@ import {
 export function AdminPanel() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [invites, setInvites] = useState<AdminInvite[]>([]);
-  const [tab, setTab] = useState<AdminTab>("invites");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showUserModal, setShowUserModal] = useState(false);
 
   const load = async () => {
     setLoading(true);
     setError(null);
-    const [usersResponse, invitesResponse] = await Promise.all([
-      fetch("/api/admin/users", { cache: "no-store" }),
-      fetch("/api/admin/invites", { cache: "no-store" }),
-    ]);
-    const usersData = await usersResponse.json();
-    const invitesData = await invitesResponse.json();
-    setLoading(false);
+    try {
+      const [usersResponse, invitesResponse] = await Promise.all([
+        fetch("/api/admin/users", { cache: "no-store" }),
+        fetch("/api/admin/invites", { cache: "no-store" }),
+      ]);
+      const usersData = await usersResponse.json();
+      const invitesData = await invitesResponse.json();
 
-    if (!usersData.ok) {
-      setError(usersData.error ?? "加载用户失败");
-      return;
-    }
-    if (!invitesData.ok) {
-      setError(invitesData.error ?? "加载邀请码失败");
-      return;
-    }
+      if (!usersData.ok) {
+        setError(usersData.error ?? "加载用户失败");
+        return;
+      }
+      if (!invitesData.ok) {
+        setError(invitesData.error ?? "加载邀请码失败");
+        return;
+      }
 
-    setUsers(usersData.users);
-    setInvites(invitesData.invites);
+      setUsers(usersData.users);
+      setInvites(invitesData.invites);
+    } catch {
+      setError("加载管理数据失败");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    let active = true;
-    Promise.all([
-      fetch("/api/admin/users", { cache: "no-store" }),
-      fetch("/api/admin/invites", { cache: "no-store" }),
-    ])
-      .then(async ([usersResponse, invitesResponse]) => {
-        const usersData = await usersResponse.json();
-        const invitesData = await invitesResponse.json();
-        if (!active) return;
-        if (!usersData.ok) {
-          setError(usersData.error ?? "加载用户失败");
-          return;
-        }
-        if (!invitesData.ok) {
-          setError(invitesData.error ?? "加载邀请码失败");
-          return;
-        }
-        setUsers(usersData.users);
-        setInvites(invitesData.invites);
-      })
-      .catch(() => {
-        if (active) setError("加载管理数据失败");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
+    load();
   }, []);
 
   return (
@@ -101,26 +75,21 @@ export function AdminPanel() {
       <div className="border-b border-[var(--stroke)] p-3 sm:p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-normal text-[var(--accent)]">
-              Operations
-            </p>
-            <h2 className="mt-0.5 text-lg font-semibold sm:text-xl">运营管理</h2>
+            <h2 className="text-lg font-semibold sm:text-xl">运营管理</h2>
           </div>
-          <button onClick={load} className={cx(secondaryButton, "h-9 px-3 text-sm")}>
-            {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-            刷新
-          </button>
-        </div>
-
-        <div className="mt-3 inline-grid rounded-[7px] border border-[var(--stroke)] bg-[var(--surface-muted)] p-1 grid-cols-2">
-          <AdminTabButton active={tab === "invites"} onClick={() => setTab("invites")}>
-            <Ticket size={15} />
-            邀请码
-          </AdminTabButton>
-          <AdminTabButton active={tab === "users"} onClick={() => setTab("users")}>
-            <Users size={15} />
-            用户额度
-          </AdminTabButton>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowUserModal(true)}
+              className={cx(secondaryButton, "h-9 px-3 text-sm")}
+            >
+              <Users size={15} />
+              用户额度
+            </button>
+            <button onClick={load} className={cx(secondaryButton, "h-9 px-3 text-sm")}>
+              {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+              刷新
+            </button>
+          </div>
         </div>
       </div>
 
@@ -130,12 +99,84 @@ export function AdminPanel() {
         </div>
       ) : null}
 
-      {tab === "invites" ? (
-        <InviteManager invites={invites} onChanged={load} />
-      ) : (
-        <UserManager users={users} onChanged={load} />
-      )}
+      <InviteManager invites={invites} onChanged={load} />
+
+      {showUserModal ? (
+        <UserQuotaModal users={users} onSaved={load} onClose={() => setShowUserModal(false)} />
+      ) : null}
     </section>
+  );
+}
+
+function UserQuotaModal({
+  users,
+  onSaved,
+  onClose,
+}: {
+  users: AdminUser[];
+  onSaved: () => Promise<void>;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-[12px] border border-[var(--stroke)] bg-[var(--surface)] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[var(--stroke)] p-4">
+          <h3 className="text-lg font-semibold">用户额度管理</h3>
+          <button
+            onClick={onClose}
+            className="grid size-9 place-items-center rounded-[7px] text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {/* 桌面端表格 */}
+          <div className="hidden lg:block">
+            {users.length === 0 ? (
+              <p className="py-6 text-center text-sm text-[var(--muted-strong)]">暂无用户</p>
+            ) : (
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--stroke)] text-[var(--muted-strong)]">
+                    <th className="py-2.5 pr-3 font-medium">用户</th>
+                    <th className="py-2.5 pr-3 font-medium">角色</th>
+                    <th className="py-2.5 pr-3 font-medium">状态</th>
+                    <th className="py-2.5 pr-3 font-medium">今日</th>
+                    <th className="py-2.5 pr-3 font-medium">总生成</th>
+                    <th className="py-2.5 pr-3 font-medium">每日额度</th>
+                    <th className="py-2.5 pr-3 font-medium">参考图</th>
+                    <th className="py-2.5 pr-3 font-medium">单张MB</th>
+                    <th className="py-2.5 font-medium">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((adminUser) => (
+                    <AdminUserRow key={adminUser.id} user={adminUser} onSaved={onSaved} />
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* 移动端卡片列表 */}
+          <div className="grid gap-2 lg:hidden">
+            {users.map((adminUser) => (
+              <AdminUserCard key={adminUser.id} user={adminUser} onSaved={onSaved} />
+            ))}
+            {users.length === 0 ? (
+              <p className="py-6 text-center text-sm text-[var(--muted-strong)]">暂无用户</p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -195,23 +236,36 @@ function InviteManager({
 
   const copyCode = async () => {
     if (!createdCode) return;
-    await navigator.clipboard.writeText(createdCode);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1200);
+    try {
+      await navigator.clipboard.writeText(createdCode);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setError("复制失败");
+    }
   };
 
   const copyInviteCode = async (invite: AdminInvite) => {
-    await navigator.clipboard.writeText(invite.codePreview);
-    setCopiedInviteId(invite.id);
-    window.setTimeout(() => setCopiedInviteId(null), 1200);
+    try {
+      await navigator.clipboard.writeText(invite.codePreview);
+      setCopiedInviteId(invite.id);
+      window.setTimeout(() => setCopiedInviteId(null), 1200);
+    } catch {
+      setError("复制失败，请手动复制");
+    }
   };
 
   const toggleInvite = async (invite: AdminInvite) => {
-    await fetch(`/api/admin/invites/${invite.id}`, {
+    const response = await fetch(`/api/admin/invites/${invite.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ disabled: !invite.disabledAt }),
     });
+    const data = await response.json();
+    if (!data.ok) {
+      setError(data.error ?? "操作失败");
+      return;
+    }
     await onChanged();
   };
 
@@ -299,6 +353,9 @@ function InviteManager({
       <div className="p-3 sm:p-4">
         {/* 桌面端表格 */}
         <div className="hidden overflow-x-auto lg:block">
+          {invites.length === 0 ? (
+            <p className="py-6 text-center text-sm text-[var(--muted-strong)]">暂无邀请码</p>
+          ) : (
           <table className="w-full min-w-[700px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--stroke)] text-[var(--muted-strong)]">
@@ -325,7 +382,7 @@ function InviteManager({
                           type="button"
                           onClick={() => copyInviteCode(invite)}
                           className="grid size-6 shrink-0 place-items-center rounded-[4px] text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
-                          title="复制邀请码"
+                          title="复制邀请码（仅预览码，完整码在创建时显示）"
                         >
                           {copiedInviteId === invite.id ? <Check size={12} /> : <Copy size={12} />}
                         </button>
@@ -376,6 +433,7 @@ function InviteManager({
               })}
             </tbody>
           </table>
+          )}
         </div>
 
         {/* 移动端卡片列表 */}
@@ -401,7 +459,7 @@ function InviteManager({
                       type="button"
                       onClick={() => copyInviteCode(invite)}
                       className="grid size-6 shrink-0 place-items-center rounded-[4px] text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--ink)]"
-                      title="复制邀请码"
+                      title="复制邀请码（仅预览码，完整码在创建时显示）"
                     >
                       {copiedInviteId === invite.id ? <Check size={12} /> : <Copy size={12} />}
                     </button>
@@ -433,52 +491,6 @@ function InviteManager({
   );
 }
 
-function UserManager({
-  users,
-  onChanged,
-}: {
-  users: AdminUser[];
-  onChanged: () => Promise<void>;
-}) {
-  return (
-    <div className="p-3 sm:p-4">
-      {/* 桌面端表格 */}
-      <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full min-w-[920px] border-collapse text-left text-sm">
-          <thead>
-            <tr className="border-b border-[var(--stroke)] text-[var(--muted-strong)]">
-              <th className="py-2.5 pr-3 font-medium">用户</th>
-              <th className="py-2.5 pr-3 font-medium">角色</th>
-              <th className="py-2.5 pr-3 font-medium">状态</th>
-              <th className="py-2.5 pr-3 font-medium">今日</th>
-              <th className="py-2.5 pr-3 font-medium">总生成</th>
-              <th className="py-2.5 pr-3 font-medium">每日额度</th>
-              <th className="py-2.5 pr-3 font-medium">参考图</th>
-              <th className="py-2.5 pr-3 font-medium">单张 MB</th>
-              <th className="py-2.5 font-medium">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((adminUser) => (
-              <AdminUserRow key={adminUser.id} user={adminUser} onSaved={onChanged} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* 移动端卡片列表 */}
-      <div className="grid gap-2 lg:hidden">
-        {users.map((adminUser) => (
-          <AdminUserCard key={adminUser.id} user={adminUser} onSaved={onChanged} />
-        ))}
-        {users.length === 0 ? (
-          <p className="py-6 text-center text-sm text-[var(--muted-strong)]">暂无用户</p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 function AdminUserRow({
   user,
   onSaved,
@@ -496,22 +508,34 @@ function AdminUserRow({
   const [status, setStatus] = useState(user.status);
   const [role, setRole] = useState(user.role);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const save = async () => {
     setSaving(true);
-    await fetch(`/api/admin/users/${user.id}/quota`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        dailyLimitOverride: numberOrNull(dailyLimit),
-        maxRefImagesOverride: numberOrNull(maxRefImages),
-        maxFileMbOverride: numberOrNull(maxFileMb),
-        status,
-        role,
-      }),
-    });
-    setSaving(false);
-    await onSaved();
+    setSaveError(null);
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/quota`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          dailyLimitOverride: numberOrNull(dailyLimit),
+          maxRefImagesOverride: numberOrNull(maxRefImages),
+          maxFileMbOverride: numberOrNull(maxFileMb),
+          status,
+          role,
+        }),
+      });
+      const data = await response.json();
+      if (!data.ok) {
+        setSaveError(data.error ?? "保存失败");
+        return;
+      }
+      await onSaved();
+    } catch {
+      setSaveError("网络异常");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -559,6 +583,7 @@ function AdminUserRow({
           {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
           保存
         </button>
+        {saveError ? <div className="mt-1 text-xs text-[var(--danger)]">{saveError}</div> : null}
       </td>
     </tr>
   );
@@ -577,22 +602,34 @@ function AdminUserCard({
   const [status, setStatus] = useState(user.status);
   const [role, setRole] = useState(user.role);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const save = async () => {
     setSaving(true);
-    await fetch(`/api/admin/users/${user.id}/quota`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        dailyLimitOverride: numberOrNull(dailyLimit),
-        maxRefImagesOverride: numberOrNull(maxRefImages),
-        maxFileMbOverride: numberOrNull(maxFileMb),
-        status,
-        role,
-      }),
-    });
-    setSaving(false);
-    await onSaved();
+    setSaveError(null);
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/quota`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          dailyLimitOverride: numberOrNull(dailyLimit),
+          maxRefImagesOverride: numberOrNull(maxRefImages),
+          maxFileMbOverride: numberOrNull(maxFileMb),
+          status,
+          role,
+        }),
+      });
+      const data = await response.json();
+      if (!data.ok) {
+        setSaveError(data.error ?? "保存失败");
+        return;
+      }
+      await onSaved();
+    } catch {
+      setSaveError("网络异常");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -657,6 +694,7 @@ function AdminUserCard({
           保存
         </button>
       </div>
+      {saveError ? <div className="mt-1.5 text-xs text-[var(--danger)]">{saveError}</div> : null}
     </div>
   );
 }

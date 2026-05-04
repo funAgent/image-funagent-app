@@ -1,19 +1,5 @@
-import {
-  Ban,
-  Check,
-  Clipboard,
-  Copy,
-  Gauge,
-  Loader2,
-  LogOut,
-  Plus,
-  RefreshCw,
-  ShieldCheck,
-  Ticket,
-  Users,
-  WandSparkles,
-  X,
-} from "lucide-react";
+// Shared types, constants, utilities, and small UI components
+// Icons are imported by consumers directly
 
 export type User = {
   id: string;
@@ -61,7 +47,6 @@ export type MeResponse = {
 };
 
 export type AdminUser = User & {
-  wechatOpenId: string | null;
   todayUsed: number;
   todayReserved: number;
   generationsCount: number;

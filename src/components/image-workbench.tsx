@@ -30,6 +30,7 @@ import {
   CompactStat,
   Notice,
   cx,
+  formatDate,
   formatMb,
   inputClass,
   panelClass,
@@ -51,16 +52,6 @@ const formatOptions = [
   { value: "jpeg", label: "JPG", detail: "Light" },
   { value: "webp", label: "WEBP", detail: "Web" },
 ];
-
-function formatDate(value: string | null) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function getGenerationImageFilename(generation: Generation) {
   const extension = generation.outputFormat === "jpeg" ? "jpg" : generation.outputFormat;
@@ -858,7 +849,7 @@ function History({ quota, generations }: { quota: Quota; generations: Generation
                       {generation.errorMessage}
                     </p>
                   ) : null}
-                  <div className="mt-2 flex flex-wrap gap-1.5">
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => copyPrompt(generation)}
@@ -869,20 +860,25 @@ function History({ quota, generations }: { quota: Quota; generations: Generation
                       {copiedId === generation.id ? "已复制" : "复制"}
                     </button>
                     {generation.imageUrl ? (
-                      <button
-                        type="button"
-                        onClick={() => downloadImage(generation)}
-                        disabled={downloadingId === generation.id}
-                        className={cx(primaryButton, "h-8 min-w-[68px] px-2.5 text-xs")}
-                        title="下载图片"
-                      >
-                        {downloadingId === generation.id ? (
-                          <Loader2 size={13} className="animate-spin" />
-                        ) : (
-                          <Download size={13} />
-                        )}
-                        {downloadingId === generation.id ? "下载中" : "下载"}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => downloadImage(generation)}
+                          disabled={downloadingId === generation.id}
+                          className={cx(primaryButton, "h-8 min-w-[68px] px-2.5 text-xs hidden sm:inline-flex")}
+                          title="下载图片"
+                        >
+                          {downloadingId === generation.id ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : (
+                            <Download size={13} />
+                          )}
+                          {downloadingId === generation.id ? "下载中" : "下载"}
+                        </button>
+                        <span className="text-[11px] text-[var(--muted)] sm:hidden">
+                          点击预览，长按图片保存
+                        </span>
+                      </>
                     ) : null}
                   </div>
                 </div>

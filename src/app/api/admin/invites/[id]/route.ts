@@ -9,6 +9,9 @@ export const runtime = "nodejs";
 
 const updateInviteSchema = z.object({
   disabled: z.boolean().optional(),
+  dailyLimitOverride: z.number().int().positive().nullable().optional(),
+  maxRefImagesOverride: z.number().int().positive().nullable().optional(),
+  maxFileMbOverride: z.number().int().positive().nullable().optional(),
 });
 
 export async function PATCH(
@@ -34,6 +37,15 @@ export async function PATCH(
             : payload.disabled
               ? new Date()
               : null,
+        ...(payload.dailyLimitOverride !== undefined
+          ? { dailyLimitOverride: payload.dailyLimitOverride }
+          : {}),
+        ...(payload.maxRefImagesOverride !== undefined
+          ? { maxRefImagesOverride: payload.maxRefImagesOverride }
+          : {}),
+        ...(payload.maxFileMbOverride !== undefined
+          ? { maxFileMbOverride: payload.maxFileMbOverride }
+          : {}),
       },
     });
 
