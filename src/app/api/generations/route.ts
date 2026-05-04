@@ -22,7 +22,7 @@ import { getFiles, validateUploads, type ValidatedUpload } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 600;
+export const maxDuration = 300;
 
 const staleQueuedAfterMs = 30 * 60 * 1000;
 
