@@ -1,16 +1,11 @@
 import { type NextRequest } from "next/server";
 import { after } from "next/server";
 import {
-  createImageWithOpenAI,
   isImageAspectPreset,
   isImageQuality,
   isImageSize,
   isOutputFormat,
-  resolveImageAspect,
-  storeGeneratedImage,
-  type ImageQuality,
-  type ImageSize,
-  type OutputFormat,
+  storeReferenceImages,
 } from "@/lib/openai-images";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -18,13 +13,13 @@ import { appEnv } from "@/lib/env";
 import { ApiError, jsonError, jsonOk } from "@/lib/http";
 import { finalizeGenerationUsage, getQuota, reserveGeneration } from "@/lib/quota";
 import { publicGeneration } from "@/lib/serializers";
-import { getFiles, validateUploads, type ValidatedUpload } from "@/lib/uploads";
+import { getFiles, validateUploads } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const staleQueuedAfterMs = 30 * 60 * 1000;
+const staleQueuedAfterMs = 2 * 60 * 60 * 1000;
 
 export async function GET() {
   try {
@@ -52,6 +47,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   let usageDate: Date | null = null;
   let userId: string | null = null;
+  let generationId: string | null = null;
 
   try {
     const user = await requireUser();
@@ -78,15 +74,11 @@ export async function POST(request: NextRequest) {
       throw new ApiError("BAD_REQUEST", "图片参数不合法。", 400);
     }
 
-    const resolvedAspect = resolveImageAspect(sizeRaw);
-    const promptForOpenAI = resolvedAspect.promptHint
-      ? `${prompt}\n\n画幅要求：${resolvedAspect.promptHint}`
-      : prompt;
     const uploads = validateUploads(getFiles(formData), user);
     const reservation = await reserveGeneration(user);
     usageDate = reservation.usageDate;
 
-    const generation = await prisma.generation.create({
+    let generation = await prisma.generation.create({
       data: {
         userId: user.id,
         mode: uploads.length > 0 ? "REFERENCE" : "TEXT",
@@ -106,30 +98,73 @@ export async function POST(request: NextRequest) {
             : undefined,
       },
     });
+    generationId = generation.id;
 
-    after(() =>
-      processGeneration({
-        generationId: generation.id,
-        userId: user.id,
-        usageDate: reservation.usageDate,
-        prompt: promptForOpenAI,
-        files: uploads,
-        size: resolvedAspect.size,
-        quality: qualityRaw,
-        outputFormat: outputFormatRaw,
-      }),
-    );
+    const references = await storeReferenceImages({
+      generationId: generation.id,
+      files: uploads,
+    });
+
+    if (references.length > 0) {
+      generation = await prisma.generation.update({
+        where: { id: generation.id },
+        data: { referenceImages: references },
+      });
+    }
+
+    after(() => triggerGenerationWorker().catch(console.error));
 
     return jsonOk({
       generation: publicGeneration(generation),
       quota: await getQuota(user),
     });
   } catch (error) {
+    if (generationId) {
+      await prisma.generation
+        .update({
+          where: { id: generationId },
+          data: {
+            status: "FAILED",
+            errorMessage: error instanceof Error ? error.message : "生成任务创建失败。",
+            completedAt: new Date(),
+          },
+        })
+        .catch(console.error);
+    }
+
     if (usageDate && userId) {
       await finalizeGenerationUsage(userId, usageDate, false).catch(console.error);
     }
 
     return jsonError(error);
+  }
+}
+
+async function triggerGenerationWorker() {
+  const functionUrl =
+    process.env.PROCESS_GENERATION_FUNCTION_URL ??
+    (process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? `${process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/+$/, "")}/functions/v1/process-generation`
+      : null);
+  const secret = process.env.PROCESS_GENERATION_SECRET;
+
+  if (!functionUrl || !secret) {
+    console.warn("[generation-worker] Supabase Edge Function trigger is not configured");
+    return;
+  }
+
+  const response = await fetch(functionUrl, {
+    method: "POST",
+    headers: {
+      "authorization": `Bearer ${secret}`,
+      "content-type": "application/json",
+      "x-worker-secret": secret,
+    },
+    body: JSON.stringify({ source: "vercel" }),
+  });
+
+  if (!response.ok) {
+    console.error("[generation-worker] trigger failed", response.status, await response.text());
   }
 }
 
@@ -172,67 +207,4 @@ async function expireStaleQueuedGenerations(userId: string) {
       });
     }
   });
-}
-
-async function processGeneration(input: {
-  generationId: string;
-  userId: string;
-  usageDate: Date;
-  prompt: string;
-  files: ValidatedUpload[];
-  size: ImageSize;
-  quality: ImageQuality;
-  outputFormat: OutputFormat;
-}) {
-  try {
-    const created = await createImageWithOpenAI({
-      prompt: input.prompt,
-      files: input.files,
-      size: input.size,
-      quality: input.quality,
-      outputFormat: input.outputFormat,
-      userId: input.userId,
-    });
-
-    const stored = await storeGeneratedImage({
-      generationId: input.generationId,
-      b64Json: created.b64Json,
-      outputFormat: input.outputFormat,
-    });
-
-    await prisma.generation.update({
-      where: { id: input.generationId },
-      data: {
-        status: "SUCCEEDED",
-        imageUrl: stored.url,
-        storageKey: stored.key,
-        inputTokens: created.usage?.input_tokens,
-        outputTokens: created.usage?.output_tokens,
-        completedAt: new Date(),
-      },
-    });
-
-    await finalizeGenerationUsage(
-      input.userId,
-      input.usageDate,
-      true,
-      created.usage?.input_tokens,
-      created.usage?.output_tokens,
-    );
-  } catch (error) {
-    await finalizeGenerationUsage(input.userId, input.usageDate, false).catch(
-      console.error,
-    );
-
-    await prisma.generation
-      .update({
-        where: { id: input.generationId },
-        data: {
-          status: "FAILED",
-          errorMessage: error instanceof Error ? error.message : "图片生成失败。",
-          completedAt: new Date(),
-        },
-      })
-      .catch(console.error);
-  }
 }

@@ -307,3 +307,41 @@ export async function storeGeneratedImage(input: {
     key: blob.pathname,
   };
 }
+
+export async function storeReferenceImages(input: {
+  generationId: string;
+  files: ValidatedUpload[];
+}) {
+  if (input.files.length === 0) return [];
+
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new ApiError("CONFIG_MISSING", "参考图存储 Token 未配置。", 500);
+  }
+
+  return Promise.all(
+    input.files.map(async (upload, index) => {
+      const extension = upload.type === "image/jpeg"
+        ? "jpg"
+        : upload.type === "image/webp"
+          ? "webp"
+          : "png";
+      const blob = await put(
+        `references/${input.generationId}/${index + 1}-${upload.name}.${extension}`,
+        Buffer.from(await upload.file.arrayBuffer()),
+        {
+          access: "public",
+          addRandomSuffix: true,
+          contentType: upload.type,
+        },
+      );
+
+      return {
+        name: upload.name,
+        size: upload.size,
+        type: upload.type,
+        url: blob.url,
+        key: blob.pathname,
+      };
+    }),
+  );
+}
