@@ -97,6 +97,12 @@ function asOpenAIError(error: unknown): ApiError {
     ? String((error as { code?: unknown }).code)
     : undefined;
 
+  console.error("[openai:image]", {
+    status,
+    code,
+    message: errorText.slice(0, 800),
+  });
+
   if (status === 401 || status === 403) {
     return new ApiError(
       "CONFIG_MISSING",
@@ -109,6 +115,34 @@ function asOpenAIError(error: unknown): ApiError {
     return new ApiError(
       "UPSTREAM_ERROR",
       "OpenAI 请求过于频繁或额度不足，请稍后再试。",
+      502,
+    );
+  }
+
+  if (status === 400) {
+    if (
+      normalizedErrorText.includes("safety") ||
+      normalizedErrorText.includes("moderation") ||
+      normalizedErrorText.includes("content policy")
+    ) {
+      return new ApiError(
+        "UPSTREAM_ERROR",
+        "OpenAI 安全策略拒绝了这次图片生成，请调整描述后重试。",
+        502,
+      );
+    }
+
+    if (normalizedErrorText.includes("model")) {
+      return new ApiError(
+        "CONFIG_MISSING",
+        "OpenAI 图片模型配置不支持，请检查 OPENAI_IMAGE_MODEL。",
+        500,
+      );
+    }
+
+    return new ApiError(
+      "UPSTREAM_ERROR",
+      `OpenAI 拒绝了这次请求：${cleanProviderMessage(errorText)}`,
       502,
     );
   }
@@ -130,6 +164,14 @@ function asOpenAIError(error: unknown): ApiError {
   }
 
   return new ApiError("UPSTREAM_ERROR", "图片生成服务暂时不可用，请稍后再试。", 502);
+}
+
+function cleanProviderMessage(message: string) {
+  return message
+    .replace(/\s+/g, " ")
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer ***")
+    .trim()
+    .slice(0, 220);
 }
 
 function collectErrorText(error: unknown, depth = 0): string {
