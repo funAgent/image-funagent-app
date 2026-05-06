@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/http";
 import { cookies } from "next/headers";
 import { hashToken } from "@/lib/auth";

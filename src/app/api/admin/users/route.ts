@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const admin = await requireAdmin();
+    await requireAdmin();
     await rateLimitByUser(RATE_LIMITS.admin);
     const usageDate = todayInShanghai();
     const users = await prisma.user.findMany({
