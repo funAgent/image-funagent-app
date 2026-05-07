@@ -29,6 +29,7 @@ import {
   buttonBase,
   cx,
   formatDate,
+  formatMb,
   inputClass,
   numberOrNull,
   panelClass,
@@ -722,6 +723,7 @@ function GenerationAuditCard({
   onPreview: (url: string) => void;
 }) {
   const status = generationStatus(generation.status);
+  const referenceImages = getReferenceImages(generation.referenceImages);
 
   return (
     <article className="overflow-hidden rounded-[8px] border border-[var(--stroke)] bg-white">
@@ -772,6 +774,41 @@ function GenerationAuditCard({
             {generation.prompt}
           </div>
 
+          {referenceImages.length > 0 ? (
+            <div className="mt-2 rounded-[7px] border border-[var(--line)] bg-[var(--surface-muted)] p-2">
+              <div className="mb-2 text-xs font-semibold text-[var(--muted-strong)]">
+                参考图 · {referenceImages.length} 张
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {referenceImages.map((image, index) => (
+                  <button
+                    key={`${image.url}-${index}`}
+                    type="button"
+                    className="group min-w-0 text-left"
+                    onClick={() => onPreview(image.url)}
+                    title={`${image.name} · ${formatMb(image.size)}`}
+                  >
+                    <span className="relative block aspect-square overflow-hidden rounded-[6px] border border-[var(--stroke)] bg-white">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={image.url}
+                        alt={image.name}
+                        className="size-full object-cover transition group-hover:scale-105"
+                      />
+                      <span className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-black/45 text-white opacity-0 backdrop-blur transition group-hover:opacity-100">
+                        <Maximize2 size={12} />
+                      </span>
+                    </span>
+                    <span className="mt-1 block truncate text-[11px] font-medium text-[var(--ink)]">
+                      {image.name}
+                    </span>
+                    <span className="block text-[10px] text-[var(--muted)]">{formatMb(image.size)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {generation.errorMessage ? (
             <p className="mt-2 rounded-[6px] bg-red-50 px-2 py-1.5 text-xs leading-4 text-[var(--danger)]">
               {generation.errorMessage}
@@ -806,6 +843,30 @@ function GenerationAuditCard({
       </div>
     </article>
   );
+}
+
+type ReferenceImage = {
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+  key: string;
+};
+
+function getReferenceImages(value: Generation["referenceImages"]): ReferenceImage[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((item): item is ReferenceImage => {
+    if (!item || typeof item !== "object") return false;
+    const image = item as Partial<ReferenceImage>;
+    return (
+      typeof image.url === "string" &&
+      typeof image.name === "string" &&
+      typeof image.size === "number" &&
+      typeof image.type === "string" &&
+      typeof image.key === "string"
+    );
+  });
 }
 
 function generationStatus(status: Generation["status"]) {
