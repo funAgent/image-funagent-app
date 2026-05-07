@@ -34,6 +34,9 @@ export type Generation = {
   outputFormat: string;
   imageUrl: string | null;
   errorMessage: string | null;
+  referenceImages?: unknown;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
   createdAt: string;
   completedAt: string | null;
 };
@@ -50,6 +53,18 @@ export type AdminUser = User & {
   todayUsed: number;
   todayReserved: number;
   generationsCount: number;
+  inviteCode: {
+    codePreview: string;
+    label: string | null;
+    createdAt: string;
+  } | null;
+};
+
+export type AdminUserGenerationsResponse = {
+  ok: boolean;
+  user?: Pick<User, "id" | "wechatOpenId" | "role" | "status">;
+  generations?: Generation[];
+  error?: string;
 };
 
 export type AdminInvite = {

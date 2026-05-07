@@ -23,6 +23,13 @@ export async function GET() {
         _count: {
           select: { generations: true },
         },
+        inviteCode: {
+          select: {
+            codePreview: true,
+            label: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
@@ -39,6 +46,13 @@ export async function GET() {
         todayUsed: user.dailyUsage[0]?.usedCount ?? 0,
         todayReserved: user.dailyUsage[0]?.reservedCount ?? 0,
         generationsCount: user._count.generations,
+        inviteCode: user.inviteCode
+          ? {
+              codePreview: user.inviteCode.codePreview,
+              label: user.inviteCode.label,
+              createdAt: user.inviteCode.createdAt.toISOString(),
+            }
+          : null,
       })),
     });
   } catch (error) {
